@@ -28,10 +28,7 @@ class SearchSelectOption<T> {
   final int id;
   final String nombre;
 
-  SearchSelectOption({
-    required this.id,
-    required this.nombre,
-  });
+  SearchSelectOption({required this.id, required this.nombre});
 }
 
 class _SearchSelectFieldState<T> extends State<SearchSelectField<T>> {
@@ -50,7 +47,9 @@ class _SearchSelectFieldState<T> extends State<SearchSelectField<T>> {
     // Mostrar el valor seleccionado en el campo si existe
     if (widget.value != null) {
       try {
-        final selected = widget.items.firstWhere((item) => item.id == widget.value);
+        final selected = widget.items.firstWhere(
+          (item) => item.id == widget.value,
+        );
         _searchController.text = selected.nombre;
       } catch (e) {
         // No encontrado
@@ -80,7 +79,9 @@ class _SearchSelectFieldState<T> extends State<SearchSelectField<T>> {
     if (oldWidget.value != widget.value) {
       if (widget.value != null) {
         try {
-          final selected = widget.items.firstWhere((item) => item.id == widget.value);
+          final selected = widget.items.firstWhere(
+            (item) => item.id == widget.value,
+          );
           _searchController.text = selected.nombre;
         } catch (e) {
           _searchController.clear();
@@ -104,8 +105,9 @@ class _SearchSelectFieldState<T> extends State<SearchSelectField<T>> {
       _filteredItems = widget.items;
     } else {
       _filteredItems = widget.items
-          .where((item) =>
-              item.nombre.toLowerCase().contains(query.toLowerCase()))
+          .where(
+            (item) => item.nombre.toLowerCase().contains(query.toLowerCase()),
+          )
           .toList();
     }
 
@@ -137,7 +139,8 @@ class _SearchSelectFieldState<T> extends State<SearchSelectField<T>> {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: Theme.of(context).colorScheme.outline.withAlpha((0.5 * 255).toInt()),
+                  color: Theme.of(context).colorScheme.outline
+                      .withAlpha((0.5 * 255).toInt()),
                 ),
               ),
               child: _filteredItems.isEmpty
@@ -154,7 +157,8 @@ class _SearchSelectFieldState<T> extends State<SearchSelectField<T>> {
                       shrinkWrap: true,
                       itemCount: _filteredItems.length,
                       itemBuilder: (context, index) {
-                        if (index >= _filteredItems.length) return const SizedBox.shrink();
+                        if (index >= _filteredItems.length)
+                          return const SizedBox.shrink();
 
                         final item = _filteredItems[index];
                         final isSelected = widget.value == item.id;
@@ -175,7 +179,8 @@ class _SearchSelectFieldState<T> extends State<SearchSelectField<T>> {
                                 vertical: 12,
                               ),
                               color: isSelected
-                                  ? Theme.of(context).colorScheme.primary.withAlpha((0.1 * 255).toInt())
+                                  ? Theme.of(context).colorScheme.primary
+                                        .withAlpha((0.1 * 255).toInt())
                                   : Colors.transparent,
                               child: Text(
                                 item.nombre,
@@ -218,21 +223,21 @@ class _SearchSelectFieldState<T> extends State<SearchSelectField<T>> {
       decoration: InputDecoration(
         labelText: widget.labelText,
         hintText: widget.hintText,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        prefixIcon: widget.value != null ? const Icon(Icons.check_circle) : null,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        prefixIcon: widget.value != null
+            ? const Icon(Icons.check_circle)
+            : null,
         suffixIcon: _searchController.text.isEmpty
-          ? const Icon(Icons.search)
-          : IconButton(
-              icon: const Icon(Icons.clear),
-              onPressed: () {
-                _searchController.clear();
-                _filteredItems = widget.items;
-                _hideOverlay();
-                widget.onChanged(null);
-              },
-            ),
+            ? const Icon(Icons.search)
+            : IconButton(
+                icon: const Icon(Icons.clear),
+                onPressed: () {
+                  _searchController.clear();
+                  _filteredItems = widget.items;
+                  _hideOverlay();
+                  widget.onChanged(null);
+                },
+              ),
       ),
       onChanged: _filterItems,
     );

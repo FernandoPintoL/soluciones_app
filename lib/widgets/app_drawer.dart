@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../providers/auth_provider.dart';
 import '../views/productos_list_screen.dart';
 import '../views/categorias_list_screen.dart';
@@ -10,10 +11,7 @@ import '../views/splash_screen.dart';
 class AppDrawer extends StatelessWidget {
   final String currentRoute;
 
-  const AppDrawer({
-    super.key,
-    required this.currentRoute,
-  });
+  const AppDrawer({super.key, required this.currentRoute});
 
   @override
   Widget build(BuildContext context) {
@@ -39,9 +37,8 @@ class AppDrawer extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(
                   'Menú Principal',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.white70,
-                  ),
+                  style: Theme.of(context).textTheme.bodySmall
+                      ?.copyWith(color: Colors.white70),
                 ),
               ],
             ),
@@ -52,7 +49,8 @@ class AppDrawer extends StatelessWidget {
             icon: Icons.shopping_bag,
             title: 'Productos',
             isActive: currentRoute == 'productos',
-            onTap: () => _navigateTo(context, const ProductosListScreen(), 'productos'),
+            onTap: () =>
+                _navigateTo(context, const ProductosListScreen(), 'productos'),
           ),
 
           const Divider(),
@@ -62,9 +60,8 @@ class AppDrawer extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
             child: Text(
               'CATÁLOGOS',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: Theme.of(context).colorScheme.secondary,
-              ),
+              style: Theme.of(context).textTheme.labelSmall
+                  ?.copyWith(color: Theme.of(context).colorScheme.secondary),
             ),
           ),
 
@@ -73,7 +70,11 @@ class AppDrawer extends StatelessWidget {
             icon: Icons.category,
             title: 'Categorías',
             isActive: currentRoute == 'categorias',
-            onTap: () => _navigateTo(context, const CategoriasListScreen(), 'categorias'),
+            onTap: () => _navigateTo(
+              context,
+              const CategoriasListScreen(),
+              'categorias',
+            ),
           ),
 
           // 📏 Unidades de Medida
@@ -81,7 +82,8 @@ class AppDrawer extends StatelessWidget {
             icon: Icons.straighten,
             title: 'Unidades de Medida',
             isActive: currentRoute == 'unidades',
-            onTap: () => _navigateTo(context, const UnidadesListScreen(), 'unidades'),
+            onTap: () =>
+                _navigateTo(context, const UnidadesListScreen(), 'unidades'),
           ),
 
           // 🏷️ Marcas
@@ -89,7 +91,8 @@ class AppDrawer extends StatelessWidget {
             icon: Icons.local_offer,
             title: 'Marcas',
             isActive: currentRoute == 'marcas',
-            onTap: () => _navigateTo(context, const MarcasListScreen(), 'marcas'),
+            onTap: () =>
+                _navigateTo(context, const MarcasListScreen(), 'marcas'),
           ),
 
           const Divider(),
@@ -99,9 +102,8 @@ class AppDrawer extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
             child: Text(
               'SESIÓN',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: Theme.of(context).colorScheme.secondary,
-              ),
+              style: Theme.of(context).textTheme.labelSmall
+                  ?.copyWith(color: Theme.of(context).colorScheme.secondary),
             ),
           ),
 
@@ -210,17 +212,13 @@ class _DrawerItem extends StatelessWidget {
     return ListTile(
       leading: Icon(
         icon,
-        color: isActive
-            ? Theme.of(context).colorScheme.primary
-            : color,
+        color: isActive ? Theme.of(context).colorScheme.primary : color,
       ),
       title: Text(
         title,
         style: TextStyle(
           fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-          color: isActive
-              ? Theme.of(context).colorScheme.primary
-              : null,
+          color: isActive ? Theme.of(context).colorScheme.primary : null,
         ),
       ),
       selected: isActive,

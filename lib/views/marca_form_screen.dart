@@ -25,7 +25,9 @@ class _MarcaFormScreenState extends State<MarcaFormScreen> {
     _nombreController = TextEditingController(text: widget.marca?.nombre ?? '');
     _activo = widget.marca?.activo ?? true;
 
-    print('✅ [MarcaFormScreen] ${widget.marca == null ? 'Crear' : 'Editar'} marca');
+    print(
+      '✅ [MarcaFormScreen] ${widget.marca == null ? 'Crear' : 'Editar'} marca',
+    );
   }
 
   @override
@@ -78,88 +80,92 @@ class _MarcaFormScreenState extends State<MarcaFormScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          widget.marca == null ? 'Nueva Marca' : 'Editar Marca',
-        ),
+        title: Text(widget.marca == null ? 'Nueva Marca' : 'Editar Marca'),
         elevation: 0,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Nombre
-              TextFormField(
-                controller: _nombreController,
-                decoration: InputDecoration(
-                  labelText: 'Nombre *',
-                  hintText: 'Ej: Sony, Samsung, LG, Canon',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  prefixIcon: const Icon(Icons.local_offer),
-                ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'El nombre es requerido';
-                  }
-                  if (value.length < 2) {
-                    return 'El nombre debe tener al menos 2 caracteres';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-
-              // Activo
-              Consumer<MarcaProvider>(
-                builder: (context, provider, _) {
-                  return CheckboxListTile(
-                    title: const Text('Activo'),
-                    value: _activo,
-                    onChanged: (value) {
-                      setState(() {
-                        _activo = value ?? true;
-                      });
-                    },
-                    contentPadding: EdgeInsets.zero,
-                  );
-                },
-              ),
-              const SizedBox(height: 32),
-
-              // Botón guardar
-              Consumer<MarcaProvider>(
-                builder: (context, provider, _) {
-                  return ElevatedButton(
-                    onPressed: provider.isLoading ? null : _handleSave,
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      backgroundColor: Theme.of(context).colorScheme.primary,
-                      foregroundColor: Theme.of(context).colorScheme.onPrimary,
+      body: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Nombre
+                TextFormField(
+                  controller: _nombreController,
+                  decoration: InputDecoration(
+                    labelText: 'Nombre *',
+                    hintText: 'Ej: Sony, Samsung, LG, Canon',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    child: provider.isLoading
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor:
-                                  AlwaysStoppedAnimation<Color>(Colors.white),
+                    prefixIcon: const Icon(Icons.local_offer),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'El nombre es requerido';
+                    }
+                    if (value.length < 2) {
+                      return 'El nombre debe tener al menos 2 caracteres';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+
+                // Activo
+                Consumer<MarcaProvider>(
+                  builder: (context, provider, _) {
+                    return CheckboxListTile(
+                      title: const Text('Activo'),
+                      value: _activo,
+                      onChanged: (value) {
+                        setState(() {
+                          _activo = value ?? true;
+                        });
+                      },
+                      contentPadding: EdgeInsets.zero,
+                    );
+                  },
+                ),
+                const SizedBox(height: 32),
+
+                // Botón guardar
+                Consumer<MarcaProvider>(
+                  builder: (context, provider, _) {
+                    return ElevatedButton(
+                      onPressed: provider.isLoading ? null : _handleSave,
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        backgroundColor: Theme.of(context).colorScheme.primary,
+                        foregroundColor: Theme.of(context)
+                            .colorScheme
+                            .onPrimary,
+                      ),
+                      child: provider.isLoading
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.white,
+                                ),
+                              ),
+                            )
+                          : Text(
+                              widget.marca == null
+                                  ? 'Crear Marca'
+                                  : 'Guardar Cambios',
+                              style: const TextStyle(fontSize: 16),
                             ),
-                          )
-                        : Text(
-                            widget.marca == null
-                                ? 'Crear Marca'
-                                : 'Guardar Cambios',
-                            style: const TextStyle(fontSize: 16),
-                          ),
-                  );
-                },
-              ),
-            ],
+                    );
+                  },
+                ),
+              ],
+            ),
           ),
         ),
       ),

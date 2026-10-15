@@ -23,11 +23,17 @@ class _UnidadFormScreenState extends State<UnidadFormScreen> {
   void initState() {
     super.initState();
     _formKey = GlobalKey<FormState>();
-    _nombreController = TextEditingController(text: widget.unidad?.nombre ?? '');
-    _codigoController = TextEditingController(text: widget.unidad?.codigo ?? '');
+    _nombreController = TextEditingController(
+      text: widget.unidad?.nombre ?? '',
+    );
+    _codigoController = TextEditingController(
+      text: widget.unidad?.codigo ?? '',
+    );
     _activo = widget.unidad?.activo ?? true;
 
-    print('✅ [UnidadFormScreen] ${widget.unidad == null ? 'Crear' : 'Editar'} unidad');
+    print(
+      '✅ [UnidadFormScreen] ${widget.unidad == null ? 'Crear' : 'Editar'} unidad',
+    );
   }
 
   @override
@@ -82,112 +88,116 @@ class _UnidadFormScreenState extends State<UnidadFormScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          widget.unidad == null ? 'Nueva Unidad' : 'Editar Unidad',
-        ),
+        title: Text(widget.unidad == null ? 'Nueva Unidad' : 'Editar Unidad'),
         elevation: 0,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Nombre
-              TextFormField(
-                controller: _nombreController,
-                decoration: InputDecoration(
-                  labelText: 'Nombre *',
-                  hintText: 'Ej: Kilogramo, Litro, Unidad',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  prefixIcon: const Icon(Icons.straighten),
-                ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'El nombre es requerido';
-                  }
-                  if (value.length < 2) {
-                    return 'El nombre debe tener al menos 2 caracteres';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-
-              // Código
-              TextFormField(
-                controller: _codigoController,
-                decoration: InputDecoration(
-                  labelText: 'Código *',
-                  hintText: 'Ej: KG, LT, UN',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  prefixIcon: const Icon(Icons.tag),
-                ),
-                textCapitalization: TextCapitalization.characters,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'El código es requerido';
-                  }
-                  if (value.length < 2 || value.length > 10) {
-                    return 'El código debe tener entre 2 y 10 caracteres';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-
-              // Activo
-              Consumer<UnidadMedidaProvider>(
-                builder: (context, provider, _) {
-                  return CheckboxListTile(
-                    title: const Text('Activo'),
-                    value: _activo,
-                    onChanged: (value) {
-                      setState(() {
-                        _activo = value ?? true;
-                      });
-                    },
-                    contentPadding: EdgeInsets.zero,
-                  );
-                },
-              ),
-              const SizedBox(height: 32),
-
-              // Botón guardar
-              Consumer<UnidadMedidaProvider>(
-                builder: (context, provider, _) {
-                  return ElevatedButton(
-                    onPressed: provider.isLoading ? null : _handleSave,
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      backgroundColor: Theme.of(context).colorScheme.primary,
-                      foregroundColor: Theme.of(context).colorScheme.onPrimary,
+      body: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Nombre
+                TextFormField(
+                  controller: _nombreController,
+                  decoration: InputDecoration(
+                    labelText: 'Nombre *',
+                    hintText: 'Ej: Kilogramo, Litro, Unidad',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    child: provider.isLoading
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor:
-                                  AlwaysStoppedAnimation<Color>(Colors.white),
+                    prefixIcon: const Icon(Icons.straighten),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'El nombre es requerido';
+                    }
+                    if (value.length < 2) {
+                      return 'El nombre debe tener al menos 2 caracteres';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+
+                // Código
+                TextFormField(
+                  controller: _codigoController,
+                  decoration: InputDecoration(
+                    labelText: 'Código *',
+                    hintText: 'Ej: KG, LT, UN',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    prefixIcon: const Icon(Icons.tag),
+                  ),
+                  textCapitalization: TextCapitalization.characters,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'El código es requerido';
+                    }
+                    if (value.length < 2 || value.length > 10) {
+                      return 'El código debe tener entre 2 y 10 caracteres';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+
+                // Activo
+                Consumer<UnidadMedidaProvider>(
+                  builder: (context, provider, _) {
+                    return CheckboxListTile(
+                      title: const Text('Activo'),
+                      value: _activo,
+                      onChanged: (value) {
+                        setState(() {
+                          _activo = value ?? true;
+                        });
+                      },
+                      contentPadding: EdgeInsets.zero,
+                    );
+                  },
+                ),
+                const SizedBox(height: 32),
+
+                // Botón guardar
+                Consumer<UnidadMedidaProvider>(
+                  builder: (context, provider, _) {
+                    return ElevatedButton(
+                      onPressed: provider.isLoading ? null : _handleSave,
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        backgroundColor: Theme.of(context).colorScheme.primary,
+                        foregroundColor: Theme.of(context)
+                            .colorScheme
+                            .onPrimary,
+                      ),
+                      child: provider.isLoading
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.white,
+                                ),
+                              ),
+                            )
+                          : Text(
+                              widget.unidad == null
+                                  ? 'Crear Unidad'
+                                  : 'Guardar Cambios',
+                              style: const TextStyle(fontSize: 16),
                             ),
-                          )
-                        : Text(
-                            widget.unidad == null
-                                ? 'Crear Unidad'
-                                : 'Guardar Cambios',
-                            style: const TextStyle(fontSize: 16),
-                          ),
-                  );
-                },
-              ),
-            ],
+                    );
+                  },
+                ),
+              ],
+            ),
           ),
         ),
       ),

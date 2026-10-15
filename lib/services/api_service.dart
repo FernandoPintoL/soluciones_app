@@ -406,6 +406,38 @@ class ApiService {
   }
 
   // Crear stock de producto
+  /// Eliminar un lote (registro de stock_productos) en el servidor.
+  /// Solo se permite si el lote está en 0 (soft delete: su historial se conserva).
+  /// Devuelve null si se eliminó, o el mensaje de error del servidor.
+  /// Con [forzar] = true también elimina un lote con stock: el servidor registra antes
+  /// una salida de ajuste que lo deja en 0 (lo reservado nunca se elimina).
+  Future<String?> eliminarStockProducto(int stockProductoId, {bool forzar = false}) async {
+    try {
+      final response = await http.delete(
+        Uri.parse(
+          '${EnvConfig.baseUrl}/app/productos/stock/$stockProductoId${forzar ? '?forzar=1' : ''}',
+        ),
+        headers: _getHeaders(),
+      );
+
+      print('📥 [ApiService DELETE STOCK] Status: ${response.statusCode}');
+      print('📥 [ApiService DELETE STOCK] Response: ${response.body}');
+
+      if (response.statusCode == 200) {
+        return null;
+      }
+      try {
+        final json = jsonDecode(response.body);
+        return json['message']?.toString() ?? 'Error al eliminar el lote';
+      } catch (_) {
+        return 'Error al eliminar el lote (${response.statusCode})';
+      }
+    } catch (e) {
+      print('❌ [ApiService DELETE STOCK] Excepción: $e');
+      return 'Error de conexión al eliminar el lote';
+    }
+  }
+
   Future<bool> crearStockProducto(
     int productoId,
     int almacenId,

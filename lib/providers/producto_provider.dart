@@ -104,8 +104,8 @@ class ProductoProvider extends ChangeNotifier {
     }
   }
 
-  /// Crear producto
-  Future<bool> createProducto(Producto producto) async {
+  /// Crear producto. Devuelve el producto creado (con su id) o null si falla.
+  Future<Producto?> createProducto(Producto producto) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -115,12 +115,12 @@ class ProductoProvider extends ChangeNotifier {
       _productos.insert(0, nuevoProducto);
       _isLoading = false;
       notifyListeners();
-      return true;
+      return nuevoProducto;
     } catch (e) {
       _errorMessage = e.toString().replaceFirst('Exception: ', '');
       _isLoading = false;
       notifyListeners();
-      return false;
+      return null;
     }
   }
 
@@ -204,7 +204,9 @@ class ProductoProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final producto = await _apiService.searchProductoByCodigoBarras(codigoBarras);
+      final producto = await _apiService.searchProductoByCodigoBarras(
+        codigoBarras,
+      );
 
       if (producto != null) {
         _productos = [producto]; // Mostrar solo el producto encontrado
