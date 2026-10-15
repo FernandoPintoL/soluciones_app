@@ -28,6 +28,9 @@ class Producto {
   final String? codigosBarra;  // Códigos de barra
   final List<Map<String, dynamic>> stocks;  // Stocks por almacén/sector
   final List<Map<String, dynamic>> stockLimites;  // Límites por almacén/sector
+  // Fraccionamiento: null = no informado (al guardar no se tocan las conversiones)
+  final bool? esFraccionado;
+  final List<Map<String, dynamic>> conversiones;  // Conversiones de unidad / producto hijo
 
   // Obtener la primera imagen (principal)
   String? get imagenPrincipal => imagenesUrls.isNotEmpty ? imagenesUrls.first : null;
@@ -88,6 +91,8 @@ class Producto {
     this.codigosBarra,
     this.stocks = const [],
     this.stockLimites = const [],
+    this.esFraccionado,
+    this.conversiones = const [],
   });
 
   factory Producto.fromJson(Map<String, dynamic> json) {
@@ -208,6 +213,13 @@ class Producto {
       codigosBarra: codigoBarraPrincipal,
       stocks: _extractStocks(json['stock'] ?? json['stocks']),  // Intenta 'stock' o 'stocks'
       stockLimites: _extractStockLimites(json['stockLimites'] ?? json['stock_limites']),  // Intenta camelCase o snake_case
+      esFraccionado: json['es_fraccionado'] is bool ? json['es_fraccionado'] as bool : null,
+      conversiones: json['conversiones'] is List
+          ? (json['conversiones'] as List)
+              .whereType<Map>()
+              .map((c) => Map<String, dynamic>.from(c))
+              .toList()
+          : const [],
     );
   }
 
@@ -316,8 +328,9 @@ class Producto {
       'precio_venta': precioVenta,
       'principio_activo': principioActivo,
       'uso_de_medicacion': usoMedicacion,
-      if (codigosBarra != null && codigosBarra!.isNotEmpty)
-        'codigos': [codigosBarra],
+      // null = no tocar los códigos; '' = eliminarlos (el backend borra con lista vacía)
+      if (codigosBarra != null)
+        'codigos': codigosBarra!.trim().isEmpty ? [] : [codigosBarra!.trim()],
       // Enviar stocks/almacenes con lote, fecha_vencimiento y límites
       'almacenes': stocks.isNotEmpty
           ? stocks.map((stock) => {
@@ -332,6 +345,21 @@ class Producto {
               if (stock['stock_maximo'] != null) 'stock_maximo': stock['stock_maximo'],
             }).toList()
           : [],
+      // Solo si se informó: si no, el backend deja las conversiones como están
+      if (esFraccionado != null) ...{
+        'es_fraccionado': esFraccionado,
+        'conversiones': esFraccionado!
+            ? conversiones.map((c) => {
+                'unidad_base_id': c['unidad_base_id'],
+                'unidad_destino_id': c['unidad_destino_id'],
+                'producto_destino_id': c['producto_destino_id'],
+                'factor_conversion': c['factor_conversion'],
+                'nombre_cuando_se_vende_como': c['nombre_cuando_se_vende_como'],
+                'activo': c['activo'] ?? true,
+                'es_conversion_principal': c['es_conversion_principal'] ?? false,
+              }).toList()
+            : [],
+      },
     };
 
     return json;

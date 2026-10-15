@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../models/dropdown_option.dart';
 import '../providers/dropdown_provider.dart';
+import 'campo_formulario.dart';
 
 /// Campo de búsqueda de marcas contra la API (con debounce).
 class MarcaSearchField extends StatefulWidget {
@@ -106,9 +107,10 @@ class _MarcaSearchFieldState extends State<MarcaSearchField> {
       children: [
         TextFormField(
           controller: _controller,
-          decoration: InputDecoration(
-            labelText: 'Marca',
-            hintText: 'Buscar marca...',
+          decoration: decoracionCampo(
+            'Marca',
+            hint: 'Buscar marca...',
+            completado: widget.value != null,
             prefixIcon: const Icon(Icons.search),
             suffixIcon: _buscando
                 ? const SizedBox(
@@ -120,7 +122,6 @@ class _MarcaSearchFieldState extends State<MarcaSearchField> {
                     ),
                   )
                 : null,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
           ),
           onChanged: _onTextoCambiado,
           onTap: () {

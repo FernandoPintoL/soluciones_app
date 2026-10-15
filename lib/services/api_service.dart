@@ -405,6 +405,56 @@ class ApiService {
     }
   }
 
+  /// Productos que pueden ser hijo de un fraccionamiento (busca por ID, SKU,
+  /// nombre o código de barras). Cada item trae id, nombre, sku,
+  /// unidad_medida_id y unidad_nombre.
+  Future<List<Map<String, dynamic>>> buscarProductosParaFraccionar(
+    String termino,
+  ) async {
+    final response = await http.get(
+      Uri.parse('${EnvConfig.baseUrl}/app/fraccionamientos/productos-disponibles')
+          .replace(queryParameters: {'search': termino}),
+      headers: _getHeaders(),
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Error buscando productos: ${response.statusCode}');
+    }
+    final json = jsonDecode(response.body);
+    final data = json is Map ? json['data'] : null;
+    return data is List
+        ? data.whereType<Map>().map((p) => Map<String, dynamic>.from(p)).toList()
+        : [];
+  }
+
+  /// Factores de conversión típicos entre dos unidades (ej. KG → G = 1000).
+  /// Devuelve el factor más común, o null si no hay sugerencia.
+  Future<double?> factorConversionSugerido(
+    int unidadBaseId,
+    int unidadDestinoId,
+  ) async {
+    try {
+      final response = await http.get(
+        Uri.parse('${EnvConfig.baseUrl}/productos/conversiones/comunes').replace(
+          queryParameters: {
+            'unidad_base_id': '$unidadBaseId',
+            'unidad_destino_id': '$unidadDestinoId',
+          },
+        ),
+        headers: _getHeaders(),
+      );
+      if (response.statusCode != 200) return null;
+      final json = jsonDecode(response.body);
+      final data = json is Map && json['success'] == true ? json['data'] : null;
+      if (data is List && data.isNotEmpty && data.first is Map) {
+        return num.tryParse(data.first['factor_conversion'].toString())
+            ?.toDouble();
+      }
+    } catch (e) {
+      print('⚠️ [ApiService] Sin factor sugerido: $e');
+    }
+    return null;
+  }
+
   // Crear stock de producto
   /// Eliminar un lote (registro de stock_productos) en el servidor.
   /// Solo se permite si el lote está en 0 (soft delete: su historial se conserva).

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'campo_formulario.dart';
+
 class SearchSelectField<T> extends StatefulWidget {
   final int? value;
   final void Function(int?) onChanged;
@@ -220,10 +222,10 @@ class _SearchSelectFieldState<T> extends State<SearchSelectField<T>> {
       controller: _searchController,
       focusNode: _focusNode,
       enabled: widget.enabled,
-      decoration: InputDecoration(
-        labelText: widget.labelText,
-        hintText: widget.hintText,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      decoration: decoracionCampo(
+        widget.labelText,
+        hint: widget.hintText,
+        completado: widget.value != null,
         prefixIcon: widget.value != null
             ? const Icon(Icons.check_circle)
             : null,

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -10,12 +11,13 @@ import '../models/producto.dart';
 import '../providers/dropdown_provider.dart';
 import '../providers/producto_provider.dart';
 import '../services/service_locator.dart';
-import '../widgets/decoracion_campo.dart';
+import '../widgets/campo_formulario.dart';
 import '../widgets/marca_search_field.dart';
 import '../widgets/overlay_carga.dart';
 import '../widgets/producto_form/botones_accion_form.dart';
 import '../widgets/producto_form/imagen_producto_card.dart';
-import '../widgets/producto_form/stock_form_card.dart';
+import '../widgets/producto_form/conversion_editor_sheet.dart';
+import '../widgets/producto_form/stock_editor_sheet.dart';
 import '../widgets/producto_form/tabla_stocks.dart';
 import '../widgets/search_select_field.dart';
 import 'barcode_scanner_screen.dart';
@@ -41,17 +43,12 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
   int? _marcaId;
   int? _unidadMedidaId;
 
-  // Formulario de stock
-  final _cantidadStockController = TextEditingController();
-  final _loteController = TextEditingController();
-  final _fechaVencimientoController = TextEditingController();
-  final _stockMinimoStockController = TextEditingController();
-  final _stockMaximoStockController = TextEditingController();
-  int? _almacenSeleccionado;
-  int? _sectorSeleccionado;
-  DateTime? _fechaVencimientoSeleccionada;
+  // Stocks del producto: es lo que se envía al backend al guardar
   List<Map<String, dynamic>> _stocksAgregados = [];
-  int? _stockEditandoIndex; // null = agregando, >= 0 = editando ese índice
+
+  // Fraccionamiento: conversiones de unidad (producto padre → hijo)
+  bool _esFraccionado = false;
+  List<Map<String, dynamic>> _conversiones = [];
 
   // Imagen
   final ImagePicker _imagePicker = ImagePicker();
@@ -60,9 +57,29 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
 
   // Producto cargado desde la API (con stocks completos)
   Producto? _productoActual;
+  bool _recargando = false;
+  // Estado del formulario tal como quedó tras la última carga; si difiere
+  // del actual, hay cambios sin guardar
+  String? _firmaCargada;
 
   bool get _esNuevo => widget.producto == null;
-  Producto? get _productoBase => _productoActual ?? widget.producto;
+
+  String _firmaFormulario() => jsonEncode([
+    _nombreController.text,
+    _skuController.text,
+    _precioCompraController.text,
+    _precioVentaController.text,
+    _codigoBarrasController.text,
+    _marcaId,
+    _unidadMedidaId,
+    _stocksAgregados,
+    _esFraccionado,
+    _conversiones,
+  ]);
+
+  bool get _hayCambiosSinGuardar =>
+      _imagenSeleccionada != null ||
+      (_firmaCargada != null && _firmaFormulario() != _firmaCargada);
 
   @override
   void initState() {
@@ -93,11 +110,6 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
       _precioCompraController,
       _precioVentaController,
       _codigoBarrasController,
-      _cantidadStockController,
-      _loteController,
-      _fechaVencimientoController,
-      _stockMinimoStockController,
-      _stockMaximoStockController,
     ]) {
       c.dispose();
     }
@@ -129,16 +141,12 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
     );
   }
 
-  static String _formatearFecha(DateTime fecha) =>
-      fecha.toIso8601String().split('T')[0];
-
   // ---------------------------------------------------------------------------
   // Carga inicial
   // ---------------------------------------------------------------------------
 
   /// Carga dropdowns y (si es edición) el producto completo en paralelo, y
-  /// recién cuando ambos terminan hace las preselecciones. Así no compiten
-  /// dos lógicas distintas por elegir el almacén/sector.
+  /// cuando ambos terminan preselecciona la unidad "UN".
   Future<void> _cargarDatosIniciales() async {
     if (!mounted) return;
     final dropdownProvider = context.read<DropdownProvider>();
@@ -150,73 +158,22 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
     ]);
     if (!mounted) return;
 
-    setState(() {
-      // Pre-seleccionar unidad con código="UN"
-      if (_unidadMedidaId == null) {
-        for (final u in dropdownProvider.unidades) {
-          if (u.codigo == 'UN') {
-            _unidadMedidaId = u.id;
-            break;
-          }
-        }
-      }
-      _preseleccionarAlmacenYSector(dropdownProvider);
-    });
-
-    if (!_esNuevo &&
-        _almacenSeleccionado != null &&
-        _sectorSeleccionado != null) {
-      _loadExistingStock(_almacenSeleccionado!, _sectorSeleccionado!);
+    // Pre-seleccionar unidad con código="UN"
+    if (_unidadMedidaId == null) {
+      final unidadUN = dropdownProvider.unidades
+          .where((u) => u.codigo == 'UN')
+          .firstOrNull;
+      if (unidadUN != null) setState(() => _unidadMedidaId = unidadUN.id);
     }
+    _firmaCargada = _firmaFormulario();
   }
 
-  /// Elige almacén y sector iniciales: los del primer stock del producto si
-  /// existe; si no, el "Almacén Principal" (o el primero) y su primer sector.
-  /// Llamar dentro de setState.
-  void _preseleccionarAlmacenYSector(DropdownProvider dropdownProvider) {
-    final almacenes = dropdownProvider.almacenes;
-    if (almacenes.isEmpty) return;
-
-    final producto = _productoBase;
-    final primerStock = (producto != null && producto.stocks.isNotEmpty)
-        ? producto.stocks.first
-        : null;
-
-    if (_almacenSeleccionado == null) {
-      final almacenStock = primerStock?['almacen_id'] as int?;
-      _almacenSeleccionado =
-          almacenStock ??
-          almacenes
-              .firstWhere(
-                (a) =>
-                    a.nombre.toLowerCase().contains('principal') ||
-                    a.nombre.toLowerCase().contains('almacen'),
-                orElse: () => almacenes.first,
-              )
-              .id;
-    }
-
-    if (_sectorSeleccionado == null) {
-      final sectores = dropdownProvider.getSectoresPorAlmacen(
-        _almacenSeleccionado!,
-      );
-      if (sectores.isEmpty) return;
-      final sectorStock = primerStock?['sector_id'] as int?;
-      final sectorValido =
-          sectorStock != null &&
-          primerStock?['almacen_id'] == _almacenSeleccionado &&
-          sectores.any((s) => s['id'] == sectorStock);
-      _sectorSeleccionado = sectorValido
-          ? sectorStock
-          : sectores.first['id'] as int;
-    }
-  }
-
-  /// Carga el producto completo desde la API (con stocks y límites).
-  Future<void> _loadProductoCompleto(int productoId) async {
+  /// Carga el producto completo desde la API (con stocks y límites) y
+  /// reemplaza lo que hay en el formulario. Devuelve false si falló.
+  Future<bool> _loadProductoCompleto(int productoId) async {
     try {
       final producto = await apiService.getProductoById(productoId);
-      if (!mounted) return;
+      if (!mounted) return false;
       setState(() {
         _productoActual = producto;
         _nombreController.text = producto.nombre;
@@ -225,10 +182,68 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
         _precioVentaController.text = producto.precioVenta?.toString() ?? '';
         _codigoBarrasController.text = producto.codigosBarra ?? '';
         _marcaId = producto.marcaId;
+        _unidadMedidaId = producto.unidadMedidaId ?? _unidadMedidaId;
         _stocksAgregados = _combinarStocksConLimites(producto);
+        _esFraccionado = producto.esFraccionado ?? false;
+        _conversiones = [...producto.conversiones];
       });
+      return true;
     } catch (e) {
       debugPrint('[ProductoForm] Error cargando producto: $e');
+      return false;
+    }
+  }
+
+  /// Botón recargar: actualiza marcas/unidades/almacenes y, si se está
+  /// editando, vuelve a traer el producto desde el servidor (descartando
+  /// los cambios sin guardar, previa confirmación).
+  Future<void> _recargar() async {
+    if (!_esNuevo && _hayCambiosSinGuardar) {
+      final descartar = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Cambios sin guardar'),
+          content: const Text(
+            'Al recargar se traerá la información actual del producto '
+            'y se perderán los cambios que no guardaste.\n\n¿Continuar?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Descartar y recargar'),
+            ),
+          ],
+        ),
+      );
+      if (descartar != true || !mounted) return;
+    }
+
+    setState(() => _recargando = true);
+    final resultados = await Future.wait([
+      context.read<DropdownProvider>().reloadDropdownData().then((_) => true),
+      if (!_esNuevo) _loadProductoCompleto(widget.producto!.id),
+    ]);
+    if (!mounted) return;
+
+    setState(() {
+      _recargando = false;
+      if (!_esNuevo) _imagenSeleccionada = null;
+    });
+    if (resultados.every((ok) => ok)) {
+      _firmaCargada = _firmaFormulario();
+      _mensaje(
+        _esNuevo ? 'Datos recargados' : 'Producto y datos recargados',
+        duracion: const Duration(seconds: 2),
+      );
+    } else {
+      _mensaje(
+        'No se pudo recargar el producto. Intenta de nuevo.',
+        tipo: _TipoMensaje.error,
+      );
     }
   }
 
@@ -250,38 +265,6 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
           };
         }(),
     ];
-  }
-
-  /// Rellena cantidad, lote y vencimiento con el stock existente del producto
-  /// en ese almacén+sector (o solo almacén, para datos antiguos sin sector).
-  void _loadExistingStock(int almacenId, int sectorId) {
-    final stocks = _productoBase?.stocks ?? const [];
-    if (stocks.isEmpty) return;
-
-    final stock = stocks.firstWhere(
-      (s) => s['almacen_id'] == almacenId && s['sector_id'] == sectorId,
-      orElse: () => stocks.firstWhere(
-        (s) => s['almacen_id'] == almacenId,
-        orElse: () => {},
-      ),
-    );
-
-    setState(() {
-      if (stock.isEmpty) {
-        _cantidadStockController.clear();
-        _loteController.clear();
-        _fechaVencimientoController.clear();
-        _fechaVencimientoSeleccionada = null;
-        return;
-      }
-
-      _cantidadStockController.text = (stock['cantidad'] ?? 0).toString();
-      _loteController.text = stock['lote']?.toString() ?? '';
-
-      final fecha = stock['fecha_vencimiento']?.toString() ?? '';
-      _fechaVencimientoController.text = fecha;
-      _fechaVencimientoSeleccionada = DateTime.tryParse(fecha);
-    });
   }
 
   // ---------------------------------------------------------------------------
@@ -342,113 +325,91 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
   // Stock
   // ---------------------------------------------------------------------------
 
-  void _agregarStock(
-    DropdownProvider dropdownProvider,
-    int almacenId,
-    int sectorId,
-  ) {
-    final cantidad = int.tryParse(_cantidadStockController.text);
-    if (cantidad == null || cantidad < 0) {
-      _mensaje('Ingresa una cantidad válida', tipo: _TipoMensaje.error);
-      return;
-    }
-
-    final stockMinimo = int.tryParse(_stockMinimoStockController.text) ?? 0;
-    final stockMaximo = int.tryParse(_stockMaximoStockController.text) ?? 0;
-    if (stockMinimo < 0 || stockMaximo < 0) {
-      _mensaje(
-        'Stock mínimo y máximo no pueden ser negativos',
-        tipo: _TipoMensaje.error,
-      );
-      return;
-    }
-
-    final almacen = dropdownProvider.almacenes.firstWhere(
-      (a) => a.id == almacenId,
-      orElse: () => DropdownOption(id: almacenId, nombre: 'Almacén $almacenId'),
+  /// Abre el editor de stock: sin [index] agrega una fila nueva; con
+  /// [index] edita esa fila de la tabla.
+  Future<void> _abrirEditorStock([int? index]) async {
+    final resultado = await StockEditorSheet.mostrar(
+      context,
+      stockInicial: index != null ? _stocksAgregados[index] : null,
     );
-    final sector = dropdownProvider
-        .getSectoresPorAlmacen(almacenId)
-        .firstWhere((s) => s['id'] == sectorId, orElse: () => {});
-
-    final isEditing = _stockEditandoIndex != null;
-    final idExistente = isEditing
-        ? _stocksAgregados[_stockEditandoIndex!]['id']
-        : null;
-    final nuevoStock = <String, dynamic>{
-      if (idExistente != null) 'id': idExistente,
-      'almacen_id': almacenId,
-      'sector_id': sectorId,
-      'cantidad': cantidad,
-      'stock_minimo': stockMinimo,
-      'stock_maximo': stockMaximo,
-      'lote': _loteController.text.isNotEmpty ? _loteController.text : null,
-      'fecha_vencimiento': _fechaVencimientoSeleccionada != null
-          ? _formatearFecha(_fechaVencimientoSeleccionada!)
-          : null,
-      'almacen_nombre': almacen.nombre,
-      'sector_nombre': sector['nombre'] ?? 'Sector $sectorId',
-    };
+    if (resultado == null || !mounted) return;
 
     setState(() {
-      if (isEditing) {
-        _stocksAgregados[_stockEditandoIndex!] = nuevoStock;
+      if (index != null) {
+        _stocksAgregados[index] = resultado;
       } else {
-        _stocksAgregados.add(nuevoStock);
+        _stocksAgregados.add(resultado);
       }
-      _limpiarCamposStock();
     });
-
     _mensaje(
-      isEditing
+      index != null
           ? 'Stock actualizado correctamente'
           : 'Stock agregado correctamente',
     );
   }
 
-  /// Carga un stock de la tabla en el formulario para editarlo.
-  void _cargarStockParaEditar(int index) {
-    final stock = _stocksAgregados[index];
-    final fecha = stock['fecha_vencimiento']?.toString() ?? '';
+  // ---------------------------------------------------------------------------
+  // Fraccionamiento
+  // ---------------------------------------------------------------------------
+
+  /// Mismas reglas que la web antes de guardar. Null si todo está bien.
+  String? _validarConversiones() {
+    if (!_esFraccionado) return null;
+    if (_conversiones.isEmpty) {
+      return 'Producto fraccionado sin conversiones: agrega al menos una o '
+          'desactiva "Permitir conversiones".';
+    }
+    if (_conversiones.any((c) => c['unidad_base_id'] != _unidadMedidaId)) {
+      return 'Las conversiones usan una unidad base distinta a la del '
+          'producto. Edítalas o elimínalas.';
+    }
+    final principales = _conversiones
+        .where((c) => c['es_conversion_principal'] == true)
+        .length;
+    if (principales != 1) {
+      return 'Debe haber exactamente una conversión principal (⭐).';
+    }
+    return null;
+  }
+
+  /// Sin [index] agrega una conversión; con [index] edita esa.
+  Future<void> _abrirEditorConversion([int? index]) async {
+    final unidadBase = _unidadMedidaId;
+    if (unidadBase == null) {
+      _mensaje(
+        'Primero selecciona la unidad de medida del producto',
+        tipo: _TipoMensaje.aviso,
+      );
+      return;
+    }
+
+    final resultado = await ConversionEditorSheet.mostrar(
+      context,
+      unidadBaseId: unidadBase,
+      productoId: widget.producto?.id,
+      conversiones: _conversiones,
+      indiceEditando: index,
+    );
+    if (resultado == null || !mounted) return;
 
     setState(() {
-      _stockEditandoIndex = index;
-      _almacenSeleccionado = stock['almacen_id'];
-      _sectorSeleccionado = stock['sector_id'];
-      _cantidadStockController.text = stock['cantidad'].toString();
-      _stockMinimoStockController.text = (stock['stock_minimo'] ?? 0)
-          .toString();
-      _stockMaximoStockController.text = (stock['stock_maximo'] ?? 0)
-          .toString();
-      _loteController.text = stock['lote'] ?? '';
-      _fechaVencimientoController.text = fecha;
-      _fechaVencimientoSeleccionada = DateTime.tryParse(fecha);
+      // Solo una principal: la nueva/editada desmarca a las demás
+      if (resultado['es_conversion_principal'] == true) {
+        _conversiones = [
+          for (final c in _conversiones)
+            {...c, 'es_conversion_principal': false},
+        ];
+      }
+      if (index != null) {
+        _conversiones[index] = resultado;
+      } else {
+        _conversiones.add(resultado);
+      }
     });
-
-    _mensaje(
-      'Editando stock: Almacén ${stock['almacen_nombre']}, '
-      'Sector ${stock['sector_nombre']}',
-      tipo: _TipoMensaje.aviso,
-    );
   }
 
-  /// Deja el formulario de stock vacío y sale del modo edición.
-  /// Llamar dentro de setState.
-  void _limpiarCamposStock() {
-    _stockEditandoIndex = null;
-    _almacenSeleccionado = null;
-    _sectorSeleccionado = null;
-    _cantidadStockController.clear();
-    _loteController.clear();
-    _fechaVencimientoController.clear();
-    _stockMinimoStockController.clear();
-    _stockMaximoStockController.clear();
-    _fechaVencimientoSeleccionada = null;
-  }
-
-  void _cancelarEdicion() {
-    setState(_limpiarCamposStock);
-    _mensaje('Edición cancelada', tipo: _TipoMensaje.neutro);
+  void _eliminarConversion(int index) {
+    setState(() => _conversiones = [..._conversiones]..removeAt(index));
   }
 
   /// Elimina un lote de la lista. Si ya está guardado (tiene id), lo elimina en el servidor
@@ -580,6 +541,11 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
       _mensaje('El nombre es requerido', tipo: _TipoMensaje.error);
       return;
     }
+    final errorConversiones = _validarConversiones();
+    if (errorConversiones != null) {
+      _mensaje(errorConversiones, tipo: _TipoMensaje.error);
+      return;
+    }
 
     // Los campos que no se muestran en el formulario se envían tal como vienen
     final base = widget.producto;
@@ -598,8 +564,14 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
       esProductoComida: base?.esProductoComida ?? false,
       permitirVentaSinStock: base?.permitirVentaSinStock ?? false,
       visibleApp: base?.visibleApp ?? true,
-      // String vacío en lugar de null para que el backend elimine el código
-      codigosBarra: _codigoBarrasController.text,
+      // '' = el usuario borró el código → el backend lo elimina. Si no se
+      // pudo cargar el producto, un campo vacío no es confiable: null = no tocar
+      codigosBarra:
+          (_esNuevo ||
+              _productoActual != null ||
+              _codigoBarrasController.text.trim().isNotEmpty)
+          ? _codigoBarrasController.text
+          : null,
       limiteventa: base?.limiteventa,
       precioCompra: _precioCompraController.text.isNotEmpty
           ? double.tryParse(_precioCompraController.text)
@@ -607,9 +579,18 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
       precioVenta: _precioVentaController.text.isNotEmpty
           ? double.tryParse(_precioVentaController.text)
           : 0.0,
-      stocks: _stocksAgregados.isNotEmpty
+      // La tabla es lo que se guarda. Si al editar no se pudo cargar el
+      // producto completo, la tabla está vacía por error: se reenvían los
+      // stocks originales para no perderlos.
+      stocks: (_esNuevo || _productoActual != null)
           ? _stocksAgregados
           : (base?.stocks ?? []),
+      // Igual que el stock: si no se pudo cargar el producto, null = el
+      // backend deja las conversiones como están
+      esFraccionado: (_esNuevo || _productoActual != null)
+          ? _esFraccionado
+          : null,
+      conversiones: _conversiones,
     );
 
     final productoProvider = context.read<ProductoProvider>();
@@ -629,26 +610,6 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
         tipo: _TipoMensaje.error,
       );
       return;
-    }
-
-    // Los stocks de _stocksAgregados ya viajan en el payload (almacenes).
-    // Solo se crea stock aparte si no hay ninguno agregado pero el
-    // formulario de stock tiene almacén, sector y cantidad.
-    if (_stocksAgregados.isEmpty &&
-        _almacenSeleccionado != null &&
-        _sectorSeleccionado != null &&
-        _cantidadStockController.text.isNotEmpty) {
-      final ok = await apiService.crearStockProducto(
-        productoId,
-        _almacenSeleccionado!,
-        _sectorSeleccionado!,
-        int.tryParse(_cantidadStockController.text) ?? 0,
-        lote: _loteController.text.isNotEmpty ? _loteController.text : null,
-        fechaVencimiento: _fechaVencimientoController.text.isNotEmpty
-            ? _fechaVencimientoController.text
-            : null,
-      );
-      if (!ok) debugPrint('[ProductoForm] Error creando stock');
     }
 
     if (_imagenSeleccionada != null) {
@@ -687,16 +648,10 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            tooltip: 'Recargar Categorías, Marcas, Unidades',
-            onPressed: () async {
-              await context.read<DropdownProvider>().reloadDropdownData();
-              if (mounted) {
-                _mensaje(
-                  'Datos recargados correctamente',
-                  duracion: const Duration(seconds: 2),
-                );
-              }
-            },
+            tooltip: _esNuevo
+                ? 'Recargar marcas, unidades y almacenes'
+                : 'Recargar producto, marcas, unidades y almacenes',
+            onPressed: _recargando ? null : _recargar,
           ),
         ],
       ),
@@ -713,17 +668,16 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      TextField(
+                      CampoTexto(
                         controller: _nombreController,
-                        decoration: decoracionCampo(
-                          'Nombre *',
-                          enabled: !guardando,
-                        ),
+                        label: 'Nombre *',
+                        enabled: !guardando,
                       ),
                       const SizedBox(height: 16),
                       ImagenProductoCard(
                         imagenSeleccionada: _imagenSeleccionada,
-                        imagenRemota: widget.producto?.imagenPrincipal,
+                        imagenRemota: (_productoActual ?? widget.producto)
+                            ?.imagenPrincipal,
                         mostrar: _mostrarImagen,
                         habilitado: !guardando,
                         onMostrarChanged: (value) =>
@@ -738,54 +692,19 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
                       _buildUnidadYMarca(dropdownProvider, guardando),
                       const SizedBox(height: 16),
                       if (!_esNuevo) ...[
-                        TextField(
+                        CampoTexto(
                           controller: _skuController,
-                          decoration: decoracionCampo(
-                            'SKU',
-                            enabled: !guardando,
-                          ),
+                          label: 'SKU',
+                          enabled: !guardando,
                         ),
                         const SizedBox(height: 16),
                       ],
                       _buildPrecios(guardando),
                       const SizedBox(height: 16),
-                      StockFormCard(
-                        almacenes: dropdownProvider.almacenes,
-                        sectores: _almacenSeleccionado != null
-                            ? dropdownProvider.getSectoresPorAlmacen(
-                                _almacenSeleccionado!,
-                              )
-                            : const [],
-                        almacenSeleccionado: _almacenSeleccionado,
-                        sectorSeleccionado: _sectorSeleccionado,
-                        onAlmacenChanged: (value) => setState(() {
-                          _almacenSeleccionado = value;
-                          _sectorSeleccionado = null;
-                        }),
-                        onSectorChanged: (value) {
-                          setState(() => _sectorSeleccionado = value);
-                          if (value != null && !_esNuevo) {
-                            _loadExistingStock(_almacenSeleccionado!, value);
-                          }
-                        },
-                        cantidadController: _cantidadStockController,
-                        stockMinimoController: _stockMinimoStockController,
-                        stockMaximoController: _stockMaximoStockController,
-                        loteController: _loteController,
-                        fechaVencimientoController: _fechaVencimientoController,
-                        onElegirFecha: _elegirFechaVencimiento,
-                      ),
-                      const SizedBox(height: 12),
-                      if (_stocksAgregados.isNotEmpty) ...[
-                        TablaStocks(
-                          stocks: _stocksAgregados,
-                          onEditar: _cargarStockParaEditar,
-                          onEliminar: _eliminarStock,
-                        ),
-                        const SizedBox(height: 12),
-                      ],
-                      _buildBotonesStock(dropdownProvider),
-                      const SizedBox(height: 12),
+                      _buildSeccionStock(),
+                      const SizedBox(height: 16),
+                      _buildSeccionFraccionamiento(dropdownProvider),
+                      const SizedBox(height: 16),
                       BotonesAccionForm(
                         guardando: guardando,
                         esNuevo: _esNuevo,
@@ -796,7 +715,7 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
                     ],
                   ),
                 ),
-                if (guardando || dropdownProvider.isLoading)
+                if (guardando || _recargando || dropdownProvider.isLoading)
                   const OverlayCarga(
                     detalle: 'Por favor espera mientras se cargan\nlas categorias, marcas y otras opciones',
                   ),
@@ -812,9 +731,10 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
     return Row(
       children: [
         Expanded(
-          child: TextField(
+          child: CampoTexto(
             controller: _codigoBarrasController,
-            decoration: decoracionCampo('Codigo de Barra', enabled: !guardando),
+            label: 'Codigo de Barra',
+            enabled: !guardando,
           ),
         ),
         const SizedBox(width: 8),
@@ -869,25 +789,21 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
     return Row(
       children: [
         Expanded(
-          child: TextField(
+          child: CampoTexto(
             controller: _precioCompraController,
-            decoration: decoracionCampo(
-              'Precio Compra',
-              hint: '0.00',
-              enabled: !guardando,
-            ),
+            label: 'Precio Compra',
+            hint: '0.00',
+            enabled: !guardando,
             keyboardType: teclado,
           ),
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: TextField(
+          child: CampoTexto(
             controller: _precioVentaController,
-            decoration: decoracionCampo(
-              'Precio Venta',
-              hint: '0.00',
-              enabled: !guardando,
-            ),
+            label: 'Precio Venta',
+            hint: '0.00',
+            enabled: !guardando,
             keyboardType: teclado,
           ),
         ),
@@ -895,54 +811,204 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
     );
   }
 
-  Widget _buildBotonesStock(DropdownProvider dropdownProvider) {
-    final editando = _stockEditandoIndex != null;
-    final puedeAgregar =
-        _almacenSeleccionado != null && _sectorSeleccionado != null;
+  /// Conversiones de unidad (fraccionamiento): mismas reglas y avisos que
+  /// el paso "Conversiones" del formulario web.
+  Widget _buildSeccionFraccionamiento(DropdownProvider dropdownProvider) {
+    final theme = Theme.of(context);
+    final unidades = dropdownProvider.unidades;
+    final baseCorta = etiquetaUnidad(unidades, _unidadMedidaId, corta: true);
+    final sinPrincipal =
+        _conversiones.isNotEmpty &&
+        !_conversiones.any((c) => c['es_conversion_principal'] == true);
+    final baseDistinta = _conversiones.any(
+      (c) => c['unidad_base_id'] != _unidadMedidaId,
+    );
 
-    return Row(
-      children: [
-        Expanded(
-          child: ElevatedButton.icon(
-            icon: Icon(editando ? Icons.save : Icons.add),
-            label: Text(
-              editando ? 'Actualizar Stock' : 'Agregar Stock a Otro Almacén',
+    Widget aviso(String texto, Color color) => Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        border: Border.all(color: color),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(texto, style: theme.textTheme.bodySmall),
+    );
+
+    return Card(
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.call_split, color: theme.colorScheme.primary),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Fraccionamiento',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                if (_esFraccionado)
+                  FilledButton.tonalIcon(
+                    onPressed: () => _abrirEditorConversion(),
+                    icon: const Icon(Icons.add),
+                    label: const Text('Agregar'),
+                  ),
+              ],
             ),
-            onPressed: puedeAgregar
-                ? () => _agregarStock(
-                    dropdownProvider,
-                    _almacenSeleccionado!,
-                    _sectorSeleccionado!,
-                  )
-                : null,
-          ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Permitir conversiones de unidades'),
+              subtitle: Text(
+                'Unidad base: ${etiquetaUnidad(unidades, _unidadMedidaId)}',
+              ),
+              value: _esFraccionado,
+              onChanged: (v) => setState(() => _esFraccionado = v),
+            ),
+            if (_esFraccionado) ...[
+              if (baseDistinta)
+                aviso(
+                  '⚠️ Las conversiones usan una unidad base distinta a la del '
+                  'producto ($baseCorta). Edítalas o elimínalas.',
+                  theme.colorScheme.error,
+                ),
+              if (sinPrincipal)
+                aviso(
+                  '⚡ Sin conversión principal: edita una y márcala con ⭐.',
+                  Colors.orange,
+                ),
+              if (_conversiones.isEmpty)
+                aviso(
+                  '📝 Aún no hay conversiones. Agrega al menos una para poder '
+                  'vender en otras unidades.',
+                  Colors.amber,
+                ),
+              for (final (i, conv) in _conversiones.indexed)
+                _buildConversionTile(i, conv, unidades, baseCorta),
+            ],
+          ],
         ),
-        if (editando) ...[
-          const SizedBox(width: 8),
-          Expanded(
-            child: OutlinedButton.icon(
-              icon: const Icon(Icons.close),
-              label: const Text('Cancelar'),
-              onPressed: _cancelarEdicion,
-            ),
-          ),
-        ],
-      ],
+      ),
     );
   }
 
-  Future<void> _elegirFechaVencimiento() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _fechaVencimientoSeleccionada ?? DateTime.now(),
-      firstDate: DateTime(2000),
-      lastDate: DateTime(2100),
+  Widget _buildConversionTile(
+    int index,
+    Map<String, dynamic> conv,
+    List<DropdownOption> unidades,
+    String baseCorta,
+  ) {
+    final theme = Theme.of(context);
+    final destino = etiquetaUnidad(
+      unidades,
+      conv['unidad_destino_id'] as int?,
+      corta: true,
     );
-    if (picked != null) {
-      setState(() {
-        _fechaVencimientoSeleccionada = picked;
-        _fechaVencimientoController.text = _formatearFecha(picked);
-      });
-    }
+    final hijo = conv['producto_destino'] as Map?;
+    final nombreVenta = conv['nombre_cuando_se_vende_como'];
+    final activo = conv['activo'] != false;
+    final principal = conv['es_conversion_principal'] == true;
+    final factor = formatearFactor(conv['factor_conversion']);
+
+    return Card(
+      margin: const EdgeInsets.only(top: 8),
+      color: activo ? null : theme.colorScheme.surfaceContainerHighest,
+      child: ListTile(
+        contentPadding: const EdgeInsets.only(left: 12, right: 4),
+        title: Text(
+          '${principal ? '⭐ ' : ''}1 $baseCorta = $factor $destino'
+          '${activo ? '' : '  (inactiva)'}',
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (conv['producto_destino_id'] != null)
+              Text(
+                '👶 ${hijo?['nombre'] ?? 'Producto #${conv['producto_destino_id']}'}'
+                '${hijo?['sku'] != null ? ' · ${hijo!['sku']}' : ''}',
+              ),
+            Text('📦 Venta: ${nombreVenta ?? 'Automático'}'),
+          ],
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.edit, size: 20),
+              color: Colors.blue,
+              tooltip: 'Editar',
+              onPressed: () => _abrirEditorConversion(index),
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete, size: 20),
+              color: theme.colorScheme.error,
+              tooltip: 'Eliminar',
+              onPressed: () => _eliminarConversion(index),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Stock del producto: la tabla es lo que se guarda; las filas se
+  /// agregan/editan en un bottom sheet.
+  Widget _buildSeccionStock() {
+    final theme = Theme.of(context);
+    return Card(
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.inventory_2, color: theme.colorScheme.primary),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Stock por Almacén',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                FilledButton.tonalIcon(
+                  onPressed: () => _abrirEditorStock(),
+                  icon: const Icon(Icons.add),
+                  label: const Text('Agregar'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (_stocksAgregados.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Text(
+                  'Sin stock cargado. Usa "Agregar" para cargar stock en un almacén.',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              )
+            else
+              TablaStocks(
+                stocks: _stocksAgregados,
+                onEditar: _abrirEditorStock,
+                onEliminar: _eliminarStock,
+              ),
+          ],
+        ),
+      ),
+    );
   }
 }
