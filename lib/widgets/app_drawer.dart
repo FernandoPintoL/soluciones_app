@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
 import '../views/productos_list_screen.dart';
+import '../views/reposicion_screen.dart';
+import '../views/stock_movimientos_screen.dart';
 import '../views/categorias_list_screen.dart';
 import '../views/unidades_list_screen.dart';
 import '../views/marcas_list_screen.dart';
@@ -51,6 +53,24 @@ class AppDrawer extends StatelessWidget {
             isActive: currentRoute == 'productos',
             onTap: () =>
                 _navigateTo(context, const ProductosListScreen(), 'productos'),
+          ),
+
+          // 📦 Stock por almacén: transferir y fraccionar
+          _DrawerItem(
+            icon: Icons.inventory,
+            title: 'Stock y movimientos',
+            isActive: currentRoute == 'stock',
+            onTap: () =>
+                _navigateTo(context, const StockMovimientosScreen(), 'stock'),
+          ),
+
+          // 🔁 Reposición sala ← almacén y compras sugeridas
+          _DrawerItem(
+            icon: Icons.swap_horiz,
+            title: 'Reposición y compras',
+            isActive: currentRoute == 'reposicion',
+            onTap: () =>
+                _navigateTo(context, const ReposicionScreen(), 'reposicion'),
           ),
 
           const Divider(),

@@ -405,6 +405,122 @@ class ApiService {
     }
   }
 
+  /// Stock de productos por almacén (una fila por producto y almacén, con sus
+  /// lotes/sectores y conversiones a producto hijo). Filtra por [search]
+  /// (ID, nombre, SKU o código de barras) o por [ids].
+  /// Devuelve `{'filas': [...], 'almacenes': [{id, nombre}]}`.
+  Future<Map<String, List<Map<String, dynamic>>>> getProductosStock({
+    String? search,
+    List<int>? ids,
+    int limite = 30,
+  }) async {
+    final response = await http.get(
+      Uri.parse('${EnvConfig.baseUrl}/app/inventario/productos-stock').replace(
+        queryParameters: {
+          if (search != null && search.trim().isNotEmpty) 'search': search.trim(),
+          if (ids != null && ids.isNotEmpty) 'ids': ids.join(','),
+          'limite': '$limite',
+        },
+      ),
+      headers: _getHeaders(),
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Error ${response.statusCode} al obtener el stock');
+    }
+    final json = jsonDecode(response.body);
+    List<Map<String, dynamic>> lista(dynamic v) => v is List
+        ? v.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList()
+        : [];
+    return {
+      'filas': lista(json is Map ? json['data'] : null),
+      'almacenes': lista(json is Map ? json['almacenes'] : null),
+    };
+  }
+
+  /// POST que devuelve el `message` del backend, o lanza con su mensaje de error.
+  Future<String> _postAccionInventario(
+    String ruta,
+    Map<String, dynamic> body,
+    String errorPorDefecto,
+  ) async {
+    final response = await http.post(
+      Uri.parse('${EnvConfig.baseUrl}$ruta'),
+      headers: _getHeaders(),
+      body: jsonEncode(body),
+    );
+    Map<String, dynamic> json = {};
+    try {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map) json = Map<String, dynamic>.from(decoded);
+    } catch (_) {}
+    if (response.statusCode == 403) {
+      throw Exception('No tienes permiso para realizar esta operación');
+    }
+    if (response.statusCode >= 300 || json['success'] == false) {
+      throw Exception(json['message'] ?? errorPorDefecto);
+    }
+    return json['message']?.toString() ?? 'Operación realizada';
+  }
+
+  /// Transfiere stock de un lote ([stockProductoId]) a otro almacén. Con
+  /// [conversionId], [cantidad] va en unidades del producto hijo y el backend
+  /// abre los paquetes necesarios (usando antes las sueltas si [usarSueltas]).
+  Future<String> transferirProducto({
+    required int stockProductoId,
+    required int almacenDestinoId,
+    required num cantidad,
+    int? conversionId,
+    bool usarSueltas = true,
+  }) {
+    return _postAccionInventario('/app/inventario/transferir', {
+      'stock_producto_id': stockProductoId,
+      'almacen_destino_id': almacenDestinoId,
+      'cantidad': cantidad,
+      if (conversionId != null) ...{
+        'conversion_id': conversionId,
+        'usar_sueltas': usarSueltas,
+      },
+    }, 'Error al transferir');
+  }
+
+  /// Fracciona [cantidadPadre] del producto en su producto hijo según la
+  /// conversión (el backend calcula la cantidad resultante).
+  Future<String> fraccionarProducto({
+    required int productoPadreId,
+    required int conversionId,
+    required num cantidadPadre,
+    required int almacenId,
+    required int sectorId,
+  }) {
+    return _postAccionInventario('/app/inventario/fraccionar', {
+      'producto_padre_id': productoPadreId,
+      'conversion_id': conversionId,
+      'cantidad_padre': cantidadPadre,
+      'almacen_id': almacenId,
+      'sector_id': sectorId,
+    }, 'Error al fraccionar');
+  }
+
+  /// Sugerencias de reposición (principal → sala) y compras, calculadas en el
+  /// backend desde stock_limites. Devuelve el `data` con las listas
+  /// `reponer`, `comprar_almacen` y `compra_directa_sala`.
+  Future<Map<String, dynamic>> getReposicionSugerida() async {
+    final response = await http.get(
+      Uri.parse('${EnvConfig.baseUrl}/app/inventario/reposicion-sugerida'),
+      headers: _getHeaders(),
+    );
+    if (response.statusCode == 403) {
+      throw Exception('No tienes permiso para ver las reposiciones');
+    }
+    if (response.statusCode != 200) {
+      throw Exception('Error ${response.statusCode} al obtener reposiciones');
+    }
+    final json = jsonDecode(response.body);
+    final data = json is Map ? json['data'] : null;
+    if (data is! Map) throw Exception('Respuesta inesperada del servidor');
+    return Map<String, dynamic>.from(data);
+  }
+
   /// Productos que pueden ser hijo de un fraccionamiento (busca por ID, SKU,
   /// nombre o código de barras). Cada item trae id, nombre, sku,
   /// unidad_medida_id y unidad_nombre.
