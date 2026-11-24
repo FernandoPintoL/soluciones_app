@@ -2,14 +2,15 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
-/// Tarjeta con switch para mostrar/ocultar la imagen del producto, su vista
-/// previa (archivo local, imagen remota o placeholder) y el botón para elegirla.
+import '../../config/colores_app.dart';
+
+/// Foto principal del producto. Con foto muestra la vista previa grande con
+/// acciones encima (cambiar, y quitar si es una foto nueva sin guardar).
+/// Sin foto muestra un recuadro para agregarla. Tocar la imagen también la cambia.
 class ImagenProductoCard extends StatelessWidget {
   final File? imagenSeleccionada;
   final String? imagenRemota;
-  final bool mostrar;
   final bool habilitado;
-  final ValueChanged<bool> onMostrarChanged;
   final VoidCallback onSeleccionar;
   final VoidCallback onQuitar;
 
@@ -17,112 +18,151 @@ class ImagenProductoCard extends StatelessWidget {
     super.key,
     required this.imagenSeleccionada,
     required this.imagenRemota,
-    required this.mostrar,
     required this.habilitado,
-    required this.onMostrarChanged,
     required this.onSeleccionar,
     required this.onQuitar,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Imagen del Producto',
-                  style: Theme.of(context).textTheme.labelLarge,
-                ),
-                Switch(value: mostrar, onChanged: onMostrarChanged),
-              ],
-            ),
-            if (mostrar) ...[
-              const SizedBox(height: 12),
-              _buildPreview(context),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: habilitado ? onSeleccionar : null,
-                  icon: const Icon(Icons.image),
-                  label: Text(
-                    imagenSeleccionada != null
-                        ? 'Cambiar Imagen'
-                        : 'Seleccionar Imagen',
+    final colores = Theme.of(context).colorScheme;
+    final estado = AppColores.estado(context);
+    final tieneFoto = imagenSeleccionada != null || imagenRemota != null;
+    final sinGuardar = imagenSeleccionada != null;
+
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      foregroundDecoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colores.outlineVariant),
+      ),
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(16)),
+      child: AspectRatio(
+        aspectRatio: 16 / 10,
+        child: GestureDetector(
+          onTap: habilitado ? onSeleccionar : null,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              tieneFoto ? _imagen(context) : _vacio(context),
+              if (tieneFoto)
+                Positioned(
+                  left: 10,
+                  top: 10,
+                  child: Wrap(
+                    spacing: 6,
+                    children: [
+                      _Etiqueta(texto: 'Principal', color: colores.primary),
+                      if (sinGuardar)
+                        _Etiqueta(texto: 'Sin guardar', color: estado.naranja),
+                    ],
                   ),
                 ),
-              ),
+              if (tieneFoto && habilitado)
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton.filledTonal(
+                        tooltip: 'Cambiar foto',
+                        onPressed: onSeleccionar,
+                        icon: const Icon(Icons.photo_camera_outlined),
+                      ),
+                      if (sinGuardar) ...[
+                        const SizedBox(width: 6),
+                        IconButton.filledTonal(
+                          tooltip: 'Quitar foto sin guardar',
+                          onPressed: onQuitar,
+                          style: IconButton.styleFrom(
+                            foregroundColor: colores.error,
+                          ),
+                          icon: const Icon(Icons.close),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
             ],
-          ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildPreview(BuildContext context) {
+  Widget _imagen(BuildContext context) {
     if (imagenSeleccionada != null) {
-      return Stack(
+      return Image.file(imagenSeleccionada!, fit: BoxFit.cover);
+    }
+    return Image.network(
+      imagenRemota!,
+      fit: BoxFit.cover,
+      loadingBuilder: (context, child, progreso) => progreso == null
+          ? child
+          : const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+      errorBuilder: (_, _, _) => _vacio(context),
+    );
+  }
+
+  Widget _vacio(BuildContext context) {
+    final tema = Theme.of(context);
+    final colores = tema.colorScheme;
+    return ColoredBox(
+      color: colores.surfaceContainerHighest,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: Image.file(
-              imagenSeleccionada!,
-              width: double.infinity,
-              height: 200,
-              fit: BoxFit.cover,
+          CircleAvatar(
+            radius: 26,
+            backgroundColor: colores.primaryContainer,
+            child: Icon(
+              Icons.add_photo_alternate_outlined,
+              color: colores.onPrimaryContainer,
             ),
           ),
-          Positioned(
-            top: 8,
-            right: 8,
-            child: FloatingActionButton(
-              mini: true,
-              onPressed: onQuitar,
-              backgroundColor: Theme.of(context).colorScheme.error,
-              child: const Icon(Icons.close),
+          const SizedBox(height: 10),
+          Text(
+            habilitado ? 'Agregar foto del producto' : 'Sin foto',
+            style: tema.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            'Cámara o galería · se guarda como principal',
+            style: tema.textTheme.labelSmall?.copyWith(
+              color: colores.onSurfaceVariant,
             ),
           ),
         ],
-      );
-    }
-    if (imagenRemota != null) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(8),
-        child: Image.network(
-          imagenRemota!,
-          width: double.infinity,
-          height: 200,
-          fit: BoxFit.cover,
-          errorBuilder: (_, _, _) => const _Placeholder(),
-        ),
-      );
-    }
-    return const _Placeholder();
+      ),
+    );
   }
 }
 
-class _Placeholder extends StatelessWidget {
-  const _Placeholder();
+/// Etiqueta sobre la foto (fondo translúcido, texto del color indicado).
+class _Etiqueta extends StatelessWidget {
+  final String texto;
+  final Color color;
+
+  const _Etiqueta({required this.texto, required this.color});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: double.infinity,
-      height: 200,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.grey.shade200,
-        borderRadius: BorderRadius.circular(8),
+        color: Colors.black.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(999),
       ),
-      child: Icon(
-        Icons.image_not_supported_outlined,
-        color: Colors.grey.shade400,
-        size: 48,
+      child: Text(
+        texto,
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }

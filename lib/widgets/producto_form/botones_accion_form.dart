@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../config/colores_app.dart';
+
 /// Botones principales del formulario: Cancelar (secundario) y
 /// Crear/Actualizar (principal, más ancho). Mientras `guardando` es true
 /// ambos se deshabilitan y el principal muestra un spinner.
@@ -24,7 +26,7 @@ class BotonesAccionForm extends StatelessWidget {
       borderRadius: BorderRadius.circular(14),
     );
     const alto = Size.fromHeight(54);
-    final colorPrincipal = esNuevo ? Colors.green.shade600 : scheme.primary;
+    final colorPrincipal = esNuevo ? AppColores.verde : scheme.primary;
 
     return Row(
       children: [
@@ -77,7 +79,7 @@ class BotonesAccionForm extends StatelessWidget {
             style: FilledButton.styleFrom(
               minimumSize: alto,
               shape: forma,
-              elevation: 2,
+              elevation: 0,
               backgroundColor: colorPrincipal,
               foregroundColor: Colors.white,
               disabledBackgroundColor: colorPrincipal.withValues(alpha: 0.6),

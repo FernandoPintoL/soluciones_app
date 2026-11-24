@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../config/colores_app.dart';
+
 import '../services/service_locator.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/colores_almacen.dart';
@@ -213,9 +215,6 @@ class _ReposicionScreenState extends State<ReposicionScreen> {
               hintText: 'Buscar por nombre o SKU',
               prefixIcon: const Icon(Icons.search),
               isDense: true,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
             ),
           ),
         ),
@@ -306,9 +305,9 @@ class _ItemReposicion extends StatelessWidget {
         null;
 
     final color = switch (grupo.clave) {
-      'reponer' => Colors.blue,
-      'comprar_almacen' => Colors.deepOrange,
-      _ => Colors.green,
+      'reponer' => AppColores.estado(context).azul,
+      'comprar_almacen' => AppColores.estado(context).naranja,
+      _ => AppColores.estado(context).verde,
     };
 
     return Card(
@@ -387,7 +386,7 @@ class _ItemReposicion extends StatelessWidget {
                         icono: Icons.warning_amber,
                         texto:
                             'Sin stock máximo: se sugiere solo hasta el mínimo',
-                        color: Colors.orange.shade800,
+                        color: AppColores.estado(context).naranja,
                       ),
                     if (onTraspasar != null)
                       Padding(
@@ -419,15 +418,13 @@ class _ItemReposicion extends StatelessWidget {
                     Text(
                       _num(item['cantidad_sugerida']),
                       style: theme.textTheme.titleLarge?.copyWith(
-                        color: color.shade700,
+                        color: color,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                     Text(
                       grupo.verbo,
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: color.shade700,
-                      ),
+                      style: theme.textTheme.labelSmall?.copyWith(color: color),
                     ),
                   ],
                 ),
@@ -485,7 +482,9 @@ class _ChipAlmacen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final oscuro = Theme.of(context).brightness == Brightness.dark;
-    final tono = oscuro ? color.shade200 : color.shade800;
+    final tono = oscuro
+        ? Color.lerp(color, Colors.white, 0.4)!
+        : Color.lerp(color, Colors.black, 0.25)!;
     final estilo = Theme.of(context).textTheme.bodySmall?.copyWith(color: tono);
 
     return Container(

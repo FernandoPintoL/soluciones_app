@@ -92,6 +92,9 @@ class _SearchSelectFieldState<T> extends State<SearchSelectField<T>> {
         _searchController.clear();
       }
     }
+
+    // La lista de opciones pudo llegar después del valor
+    if (oldWidget.items != widget.items) _sincronizarTexto();
   }
 
   @override
@@ -100,6 +103,18 @@ class _SearchSelectFieldState<T> extends State<SearchSelectField<T>> {
     _searchController.dispose();
     _focusNode.dispose();
     super.dispose();
+  }
+
+  /// Muestra el nombre de la opción elegida. Puede correr antes de que llegue la
+  /// lista (los catálogos cargan en paralelo con el producto), por eso se repite.
+  void _sincronizarTexto() {
+    if (_focusNode.hasFocus || widget.value == null) return;
+    final seleccionada = widget.items
+        .where((i) => i.id == widget.value)
+        .firstOrNull;
+    if (seleccionada != null && _searchController.text != seleccionada.nombre) {
+      _searchController.text = seleccionada.nombre;
+    }
   }
 
   void _filterItems(String query) {
@@ -134,7 +149,7 @@ class _SearchSelectFieldState<T> extends State<SearchSelectField<T>> {
           top: offset.dy + size.height + 5,
           width: size.width,
           child: Material(
-            elevation: 4,
+            elevation: 0,
             borderRadius: BorderRadius.circular(8),
             child: Container(
               constraints: const BoxConstraints(maxHeight: 250),

@@ -1,6 +1,8 @@
 import 'dart:convert';
+
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+
 import '../config/env_config.dart';
 import '../models/login_response.dart';
 
@@ -12,7 +14,7 @@ class AuthService {
   Future<LoginResponse> login(String email, String password) async {
     try {
       final loginData = {
-        'login': email,  // El backend acepta email O usernick
+        'login': email, // El backend acepta email O usernick
         'password': password,
       };
 

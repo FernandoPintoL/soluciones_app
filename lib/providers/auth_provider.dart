@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
+
 import '../services/auth_service.dart';
 import '../services/api_service.dart';
 import '../services/service_locator.dart';
 
 class AuthProvider extends ChangeNotifier {
-  final AuthService _authService = authService;  // Singleton
-  final ApiService _apiService = apiService;      // Singleton
+  final AuthService _authService = authService; // Singleton
+  final ApiService _apiService = apiService; // Singleton
 
   bool _isLoading = false;
   bool _isAuthenticated = false;
@@ -36,7 +37,9 @@ class AuthProvider extends ChangeNotifier {
       final token = await _authService.getToken();
       if (token != null) {
         _apiService.setToken(token);
-        print('✅ [AuthProvider] Token recuperado en startup: ${token.substring(0, 20)}...');
+        print(
+          '✅ [AuthProvider] Token recuperado en startup: ${token.substring(0, 20)}...',
+        );
       }
     }
     notifyListeners();
@@ -53,7 +56,9 @@ class AuthProvider extends ChangeNotifier {
 
       // ✅ IMPORTANTE: Pasar el token al ApiService
       _apiService.setToken(response.token);
-      print('✅ [AuthProvider] Token asignado al ApiService: ${response.token.substring(0, 20)}...');
+      print(
+        '✅ [AuthProvider] Token asignado al ApiService: ${response.token.substring(0, 20)}...',
+      );
 
       _isAuthenticated = true;
       _user = response.user;
@@ -106,7 +111,9 @@ class AuthProvider extends ChangeNotifier {
 
       // ✅ IMPORTANTE: Pasar el token al ApiService
       _apiService.setToken(response.token);
-      print('✅ [AuthProvider] Token asignado al ApiService (register): ${response.token.substring(0, 20)}...');
+      print(
+        '✅ [AuthProvider] Token asignado al ApiService (register): ${response.token.substring(0, 20)}...',
+      );
 
       _isAuthenticated = true;
       _user = response.user;

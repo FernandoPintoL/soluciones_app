@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../config/colores_app.dart';
+
 /// Color con el que se resaltan los campos ya completados (solo referencia
 /// visual, no es validación).
-final Color colorCampoCompletado = Colors.green.shade400;
+final Color colorCampoCompletado = AppColores.verde;
 
 /// Decoración común de los campos de formulario: borde redondeado.
 /// `compacta` reduce el padding interno. `completado` resalta el campo con
@@ -15,6 +17,7 @@ InputDecoration decoracionCampo(
   bool enabled = true,
   bool compacta = false,
   bool completado = false,
+  Color colorCompletado = AppColores.verde,
 }) {
   final forma = BorderRadius.circular(12);
   return InputDecoration(
@@ -23,17 +26,16 @@ InputDecoration decoracionCampo(
     prefixIcon: prefixIcon,
     suffixIcon: suffixIcon,
     enabled: enabled,
-    border: OutlineInputBorder(borderRadius: forma),
     // Solo cambia el estado "habilitado sin foco": al enfocar se ve el
     // color normal del tema y al deshabilitar, el gris de siempre.
     enabledBorder: completado
         ? OutlineInputBorder(
             borderRadius: forma,
-            borderSide: BorderSide(color: colorCampoCompletado, width: 1.5),
+            borderSide: BorderSide(color: colorCompletado, width: 1.5),
           )
         : null,
     filled: completado,
-    fillColor: completado ? colorCampoCompletado.withValues(alpha: 0.08) : null,
+    fillColor: completado ? colorCompletado.withValues(alpha: 0.08) : null,
     contentPadding: compacta
         ? const EdgeInsets.symmetric(horizontal: 16, vertical: 12)
         : null,
@@ -53,6 +55,7 @@ class CampoTexto extends StatelessWidget {
   final TextInputType? keyboardType;
   final bool readOnly;
   final VoidCallback? onTap;
+  final ValueChanged<String>? onChanged;
 
   const CampoTexto({
     super.key,
@@ -66,6 +69,7 @@ class CampoTexto extends StatelessWidget {
     this.keyboardType,
     this.readOnly = false,
     this.onTap,
+    this.onChanged,
   });
 
   @override
@@ -77,6 +81,7 @@ class CampoTexto extends StatelessWidget {
         keyboardType: keyboardType,
         readOnly: readOnly,
         onTap: onTap,
+        onChanged: onChanged,
         decoration: decoracionCampo(
           label,
           hint: hint,
@@ -85,6 +90,7 @@ class CampoTexto extends StatelessWidget {
           enabled: enabled,
           compacta: compacta,
           completado: valor.text.trim().isNotEmpty,
+          colorCompletado: AppColores.estado(context).verde,
         ),
       ),
     );

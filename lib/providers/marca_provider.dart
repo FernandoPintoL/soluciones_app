@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../models/marca.dart';
 import '../services/service_locator.dart';
 
@@ -33,10 +34,7 @@ class MarcaProvider extends ChangeNotifier {
       // Guardar el search actual
       _currentSearch = search;
 
-      final result = await _apiService.getMarcas(
-        page: page,
-        search: search,
-      );
+      final result = await _apiService.getMarcas(page: page, search: search);
 
       final newMarcas = result['marcas'] as List<Marca>;
       final pagination = result['pagination'] as Map<String, dynamic>;

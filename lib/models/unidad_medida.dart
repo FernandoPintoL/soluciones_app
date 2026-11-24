@@ -21,11 +21,7 @@ class UnidadMedida {
   }
 
   Map<String, dynamic> toJson() {
-    return {
-      'nombre': nombre,
-      'codigo': codigo,
-      'activo': activo,
-    };
+    return {'nombre': nombre, 'codigo': codigo, 'activo': activo};
   }
 
   UnidadMedida copyWith({

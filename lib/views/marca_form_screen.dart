@@ -98,9 +98,6 @@ class _MarcaFormScreenState extends State<MarcaFormScreen> {
                   decoration: InputDecoration(
                     labelText: 'Nombre *',
                     hintText: 'Ej: Sony, Samsung, LG, Canon',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
                     prefixIcon: const Icon(Icons.local_offer),
                   ),
                   validator: (value) {

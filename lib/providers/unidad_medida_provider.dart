@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../models/unidad_medida.dart';
 import '../services/service_locator.dart';
 
@@ -28,7 +29,9 @@ class UnidadMedidaProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      print('📄 [UnidadMedidaProvider] getUnidades(page: $page, search: $search)');
+      print(
+        '📄 [UnidadMedidaProvider] getUnidades(page: $page, search: $search)',
+      );
 
       // Guardar el search actual
       _currentSearch = search;

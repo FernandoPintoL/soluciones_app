@@ -108,9 +108,6 @@ class _CategoriaFormScreenState extends State<CategoriaFormScreen> {
                   decoration: InputDecoration(
                     labelText: 'Nombre *',
                     hintText: 'Ej: Electrónica, Ropa, Alimentos',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
                     prefixIcon: const Icon(Icons.category),
                   ),
                   validator: (value) {
@@ -131,9 +128,6 @@ class _CategoriaFormScreenState extends State<CategoriaFormScreen> {
                   decoration: InputDecoration(
                     labelText: 'Descripción',
                     hintText: 'Descripción opcional de la categoría',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
                     prefixIcon: const Icon(Icons.description),
                   ),
                   maxLines: 3,

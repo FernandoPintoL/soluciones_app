@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+
+import '../config/colores_app.dart';
+
 import 'package:provider/provider.dart';
 
 import '../providers/unidad_medida_provider.dart';
@@ -65,7 +68,10 @@ class _UnidadesListScreenState extends State<UnidadesListScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Eliminar', style: TextStyle(color: Colors.red)),
+            child: Text(
+              'Eliminar',
+              style: TextStyle(color: AppColores.estado(context).rojo),
+            ),
           ),
         ],
       ),
@@ -73,8 +79,9 @@ class _UnidadesListScreenState extends State<UnidadesListScreen> {
 
     if (confirmed == true) {
       if (!mounted) return;
-      final success =
-          await context.read<UnidadMedidaProvider>().deleteUnidad(id);
+      final success = await context.read<UnidadMedidaProvider>().deleteUnidad(
+        id,
+      );
       if (!mounted) return;
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -147,14 +154,13 @@ class _UnidadesListScreenState extends State<UnidadesListScreen> {
                         },
                       )
                     : null,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
               ),
               onChanged: (value) {
                 setState(() {});
                 if (value.isNotEmpty) {
-                  context.read<UnidadMedidaProvider>().getUnidades(search: value);
+                  context.read<UnidadMedidaProvider>().getUnidades(
+                    search: value,
+                  );
                 } else {
                   context.read<UnidadMedidaProvider>().getUnidades();
                 }
@@ -178,7 +184,7 @@ class _UnidadesListScreenState extends State<UnidadesListScreen> {
                         Icon(
                           Icons.error_outline,
                           size: 64,
-                          color: Colors.red.shade300,
+                          color: AppColores.estado(context).rojo,
                         ),
                         const SizedBox(height: 16),
                         Text(
@@ -188,9 +194,7 @@ class _UnidadesListScreenState extends State<UnidadesListScreen> {
                         const SizedBox(height: 24),
                         ElevatedButton(
                           onPressed: () {
-                            context
-                                .read<UnidadMedidaProvider>()
-                                .refresh();
+                            context.read<UnidadMedidaProvider>().refresh();
                           },
                           child: const Text('Reintentar'),
                         ),
@@ -207,7 +211,7 @@ class _UnidadesListScreenState extends State<UnidadesListScreen> {
                         Icon(
                           Icons.inbox,
                           size: 64,
-                          color: Colors.grey.shade300,
+                          color: Theme.of(context).colorScheme.outlineVariant,
                         ),
                         const SizedBox(height: 16),
                         const Text('No hay unidades de medida'),
@@ -218,7 +222,8 @@ class _UnidadesListScreenState extends State<UnidadesListScreen> {
 
                 return ListView.builder(
                   controller: _scrollController,
-                  itemCount: provider.unidades.length +
+                  itemCount:
+                      provider.unidades.length +
                       (provider.hasMorePages ? 1 : 0),
                   itemBuilder: (context, index) {
                     // Indicador de carga al final
@@ -241,9 +246,7 @@ class _UnidadesListScreenState extends State<UnidadesListScreen> {
                         leading: Chip(
                           label: Text(
                             unidad.codigo,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                            ),
+                            style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
                         ),
                         title: Text(unidad.nombre),
@@ -251,8 +254,8 @@ class _UnidadesListScreenState extends State<UnidadesListScreen> {
                           unidad.activo ? 'Activo' : 'Inactivo',
                           style: TextStyle(
                             color: unidad.activo
-                                ? Colors.green
-                                : Colors.grey,
+                                ? AppColores.estado(context).verde
+                                : AppColores.estado(context).gris,
                           ),
                         ),
                         trailing: PopupMenuButton(
@@ -263,17 +266,18 @@ class _UnidadesListScreenState extends State<UnidadesListScreen> {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (_) => UnidadFormScreen(
-                                      unidad: unidad,
-                                    ),
+                                    builder: (_) =>
+                                        UnidadFormScreen(unidad: unidad),
                                   ),
                                 );
                               },
                             ),
                             PopupMenuItem(
-                              child: const Text(
+                              child: Text(
                                 'Eliminar',
-                                style: TextStyle(color: Colors.red),
+                                style: TextStyle(
+                                  color: AppColores.estado(context).rojo,
+                                ),
                               ),
                               onTap: () => _handleDelete(unidad.id),
                             ),
@@ -283,9 +287,7 @@ class _UnidadesListScreenState extends State<UnidadesListScreen> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => UnidadFormScreen(
-                                unidad: unidad,
-                              ),
+                              builder: (_) => UnidadFormScreen(unidad: unidad),
                             ),
                           );
                         },

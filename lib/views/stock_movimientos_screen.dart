@@ -143,9 +143,6 @@ class _StockMovimientosScreenState extends State<StockMovimientosScreen> {
                   hintText: 'Buscar por ID, nombre, SKU o código de barras',
                   prefixIcon: const Icon(Icons.search),
                   isDense: true,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
                 ),
               ),
             ),

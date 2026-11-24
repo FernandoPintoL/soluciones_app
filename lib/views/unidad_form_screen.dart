@@ -106,9 +106,6 @@ class _UnidadFormScreenState extends State<UnidadFormScreen> {
                   decoration: InputDecoration(
                     labelText: 'Nombre *',
                     hintText: 'Ej: Kilogramo, Litro, Unidad',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
                     prefixIcon: const Icon(Icons.straighten),
                   ),
                   validator: (value) {
@@ -129,9 +126,6 @@ class _UnidadFormScreenState extends State<UnidadFormScreen> {
                   decoration: InputDecoration(
                     labelText: 'Código *',
                     hintText: 'Ej: KG, LT, UN',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
                     prefixIcon: const Icon(Icons.tag),
                   ),
                   textCapitalization: TextCapitalization.characters,

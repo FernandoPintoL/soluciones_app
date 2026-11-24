@@ -123,6 +123,9 @@ class _StockEditorSheetState extends State<StockEditorSheet> {
       error = 'Ingresa una cantidad válida';
     } else if (stockMinimo < 0 || stockMaximo < 0) {
       error = 'Stock mínimo y máximo no pueden ser negativos';
+    } else if (stockMaximo > 0 && stockMinimo > stockMaximo) {
+      // Máximo 0 = sin máximo, por eso solo se compara cuando es mayor a 0
+      error = 'El stock mínimo no puede ser mayor que el máximo';
     }
     if (error != null) {
       setState(() => _error = error);

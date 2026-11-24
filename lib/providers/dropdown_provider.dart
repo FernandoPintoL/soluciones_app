@@ -1,9 +1,12 @@
 import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+
 import '../config/env_config.dart';
 import '../models/dropdown_option.dart';
+import '../models/tipo_precio_opcion.dart';
 
 class DropdownProvider extends ChangeNotifier {
   List<DropdownOption> categorias = [];
@@ -12,6 +15,7 @@ class DropdownProvider extends ChangeNotifier {
   List<DropdownOption> proveedores = [];
   List<DropdownOption> almacenes = [];
   List<Map<String, dynamic>> sectores = [];
+  List<TipoPrecioOpcion> tiposPrecio = [];
 
   bool isLoading = false;
   String? errorMessage;
@@ -46,10 +50,7 @@ class DropdownProvider extends ChangeNotifier {
       final url = '${EnvConfig.baseUrl}$endpoint?page=$page&per_page=100';
       print('🔄 [DropdownProvider] Cargando página $page: $url');
 
-      final response = await http.get(
-        Uri.parse(url),
-        headers: headers,
-      );
+      final response = await http.get(Uri.parse(url), headers: headers);
 
       if (response.statusCode == 200) {
         final json = jsonDecode(response.body);
@@ -95,13 +96,17 @@ class DropdownProvider extends ChangeNotifier {
       // Cargar TODAS las unidades de medida (paginadas)
       print('🔄 [DropdownProvider] Cargando todas las unidades...');
       final unidadesData = await _loadAllPages('/app/unidades-medida', headers);
-      unidades = unidadesData.map((u) => DropdownOption.fromJson(u as Map<String, dynamic>)).toList();
+      unidades = unidadesData
+          .map((u) => DropdownOption.fromJson(u as Map<String, dynamic>))
+          .toList();
       print('✅ Unidades cargadas: ${unidades.length}');
 
       // Cargar TODAS las marcas (paginadas)
       print('🔄 [DropdownProvider] Cargando todas las marcas...');
       final marcasData = await _loadAllPages('/app/marcas', headers);
-      marcas = marcasData.map((m) => DropdownOption.fromJson(m as Map<String, dynamic>)).toList();
+      marcas = marcasData
+          .map((m) => DropdownOption.fromJson(m as Map<String, dynamic>))
+          .toList();
       print('✅ Marcas cargadas: ${marcas.length}');
 
       // ⏭️ OMITIDO: Proveedores (no se usan actualmente)
@@ -109,14 +114,25 @@ class DropdownProvider extends ChangeNotifier {
       // Cargar TODOS los almacenes (paginados)
       print('🔄 [DropdownProvider] Cargando todos los almacenes...');
       final almacenesData = await _loadAllPages('/app/almacenes', headers);
-      almacenes = almacenesData.map((a) => DropdownOption.fromJson(a as Map<String, dynamic>)).toList();
+      almacenes = almacenesData
+          .map((a) => DropdownOption.fromJson(a as Map<String, dynamic>))
+          .toList();
       print('✅ Almacenes cargados: ${almacenes.length}');
 
       // Cargar TODOS los sectores (paginados)
       print('🔄 [DropdownProvider] Cargando todos los sectores...');
       final sectoresData = await _loadAllPages('/app/sectores', headers);
-      sectores = sectoresData.map((s) => Map<String, dynamic>.from(s as Map)).toList();
+      sectores = sectoresData
+          .map((s) => Map<String, dynamic>.from(s as Map))
+          .toList();
       print('✅ Sectores cargados: ${sectores.length}');
+
+      // Tipos de precio de la empresa (costo, venta, mayor, etc.)
+      final tiposData = await _loadAllPages('/app/tipos-precio', headers);
+      tiposPrecio = tiposData
+          .map((t) => TipoPrecioOpcion.fromJson(t as Map<String, dynamic>))
+          .toList();
+      print('✅ Tipos de precio cargados: ${tiposPrecio.length}');
 
       print('✅ [DropdownProvider] Datos de dropdowns cargados correctamente');
     } catch (e) {
@@ -138,6 +154,7 @@ class DropdownProvider extends ChangeNotifier {
     proveedores = [];
     almacenes = [];
     sectores = [];
+    tiposPrecio = [];
     errorMessage = null;
     notifyListeners();
 
@@ -162,10 +179,7 @@ class DropdownProvider extends ChangeNotifier {
 
       print('🔍 [DropdownProvider] Buscando marcas: $query');
 
-      final response = await http.get(
-        Uri.parse(url),
-        headers: headers,
-      );
+      final response = await http.get(Uri.parse(url), headers: headers);
 
       if (response.statusCode == 200) {
         final json = jsonDecode(response.body);
@@ -207,7 +221,6 @@ class DropdownProvider extends ChangeNotifier {
       // Esto usa el mismo endpoint que la búsqueda lazy pero sin filtro
       print('⚠️ Marca $marcaId no encontrada en cache, buscando...');
       return null; // Retornar null si no está en cache
-
     } catch (e) {
       print('❌ Error obteniendo marca: $e');
       return null;

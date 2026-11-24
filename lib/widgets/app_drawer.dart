@@ -1,140 +1,187 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../config/colores_app.dart';
+import '../config/env_config.dart';
+import '../config/modulos.dart';
+import '../models/indicadores_menu.dart';
 import '../providers/auth_provider.dart';
-import '../views/productos_list_screen.dart';
-import '../views/reposicion_screen.dart';
-import '../views/stock_movimientos_screen.dart';
-import '../views/categorias_list_screen.dart';
-import '../views/unidades_list_screen.dart';
-import '../views/marcas_list_screen.dart';
+import '../services/inicio_service.dart';
 import '../views/splash_screen.dart';
 
-class AppDrawer extends StatelessWidget {
+/// Menú lateral. Las opciones salen de [modulos] (config/modulos.dart).
+/// Muestra indicadores: estado de la caja y productos con stock bajo.
+class AppDrawer extends StatefulWidget {
   final String currentRoute;
 
   const AppDrawer({super.key, required this.currentRoute});
 
   @override
+  State<AppDrawer> createState() => _AppDrawerState();
+}
+
+class _AppDrawerState extends State<AppDrawer> {
+  IndicadoresMenu? _indicadores;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarIndicadores();
+  }
+
+  /// Si falla, el menú se muestra sin indicadores.
+  Future<void> _cargarIndicadores() async {
+    try {
+      final i = await inicioService.getIndicadores();
+      if (mounted) setState(() => _indicadores = i);
+    } catch (_) {
+      // Sin indicadores: el menú funciona igual
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final colores = Theme.of(context).colorScheme;
+    final usuario = context.watch<AuthProvider>().user?['name']?.toString();
+
     return Drawer(
-      child: ListView(
-        padding: EdgeInsets.zero,
-        children: [
-          DrawerHeader(
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary,
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _encabezado(context, usuario),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                children: [
+                  _seccion(context, 'OPERACIÓN', SeccionModulo.operacion),
+                  _seccion(context, 'INVENTARIO', SeccionModulo.inventario),
+                  _seccion(context, 'CATÁLOGOS', SeccionModulo.catalogos),
+                ],
+              ),
             ),
+            const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: _ItemMenu(
+                icono: Icons.logout,
+                titulo: 'Cerrar sesión',
+                color: colores.error,
+                onTap: () => _handleLogout(context),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Text(
+                'Versión ${EnvConfig.appVersion}',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.labelSmall
+                    ?.copyWith(color: colores.onSurfaceVariant),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Logo, nombre del sistema y usuario conectado.
+  Widget _encabezado(BuildContext context, String? usuario) {
+    final tema = Theme.of(context);
+    final colores = tema.colorScheme;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+      color: colores.primaryContainer,
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.asset(
+              'assets/icons/icon.png',
+              width: 48,
+              height: 48,
+              fit: BoxFit.cover,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 Text(
                   'Inventario',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    color: Colors.white,
+                  style: tema.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
+                    color: colores.onPrimaryContainer,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 2),
                 Text(
-                  'Menú Principal',
-                  style: Theme.of(context).textTheme.bodySmall
-                      ?.copyWith(color: Colors.white70),
+                  usuario == null || usuario.isEmpty
+                      ? 'Menú principal'
+                      : usuario,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: tema.textTheme.bodySmall?.copyWith(
+                    color: colores.onPrimaryContainer.withValues(alpha: 0.8),
+                  ),
                 ),
               ],
             ),
           ),
-
-          // 📦 Productos
-          _DrawerItem(
-            icon: Icons.shopping_bag,
-            title: 'Productos',
-            isActive: currentRoute == 'productos',
-            onTap: () =>
-                _navigateTo(context, const ProductosListScreen(), 'productos'),
-          ),
-
-          // 📦 Stock por almacén: transferir y fraccionar
-          _DrawerItem(
-            icon: Icons.inventory,
-            title: 'Stock y movimientos',
-            isActive: currentRoute == 'stock',
-            onTap: () =>
-                _navigateTo(context, const StockMovimientosScreen(), 'stock'),
-          ),
-
-          // 🔁 Reposición sala ← almacén y compras sugeridas
-          _DrawerItem(
-            icon: Icons.swap_horiz,
-            title: 'Reposición y compras',
-            isActive: currentRoute == 'reposicion',
-            onTap: () =>
-                _navigateTo(context, const ReposicionScreen(), 'reposicion'),
-          ),
-
-          const Divider(),
-
-          // 🏷️ Gestión de Catálogos
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-            child: Text(
-              'CATÁLOGOS',
-              style: Theme.of(context).textTheme.labelSmall
-                  ?.copyWith(color: Theme.of(context).colorScheme.secondary),
-            ),
-          ),
-
-          // 📂 Categorías
-          _DrawerItem(
-            icon: Icons.category,
-            title: 'Categorías',
-            isActive: currentRoute == 'categorias',
-            onTap: () => _navigateTo(
-              context,
-              const CategoriasListScreen(),
-              'categorias',
-            ),
-          ),
-
-          // 📏 Unidades de Medida
-          _DrawerItem(
-            icon: Icons.straighten,
-            title: 'Unidades de Medida',
-            isActive: currentRoute == 'unidades',
-            onTap: () =>
-                _navigateTo(context, const UnidadesListScreen(), 'unidades'),
-          ),
-
-          // 🏷️ Marcas
-          _DrawerItem(
-            icon: Icons.local_offer,
-            title: 'Marcas',
-            isActive: currentRoute == 'marcas',
-            onTap: () =>
-                _navigateTo(context, const MarcasListScreen(), 'marcas'),
-          ),
-
-          const Divider(),
-
-          // 🚪 Logout
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-            child: Text(
-              'SESIÓN',
-              style: Theme.of(context).textTheme.labelSmall
-                  ?.copyWith(color: Theme.of(context).colorScheme.secondary),
-            ),
-          ),
-
-          _DrawerItem(
-            icon: Icons.logout,
-            title: 'Cerrar Sesión',
-            color: Theme.of(context).colorScheme.error,
-            onTap: () => _handleLogout(context),
-          ),
         ],
       ),
+    );
+  }
+
+  Widget _seccion(BuildContext context, String titulo, SeccionModulo seccion) {
+    final modulosSeccion = modulosDe(seccion);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 16, 12, 6),
+          child: Text(
+            titulo,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              letterSpacing: 1.1,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        for (final m in modulosSeccion) _opcion(context, m),
+      ],
+    );
+  }
+
+  /// Una opción del menú, con su indicador si le corresponde.
+  Widget _opcion(BuildContext context, Modulo m) {
+    final i = _indicadores;
+    String? subtitulo;
+    int? badge;
+
+    if (i != null && m.id == 'caja') {
+      subtitulo = i.cajaAbierta
+          ? 'Abierta · Bs ${i.efectivoEnCaja.toStringAsFixed(2)} en efectivo'
+          : 'Sin caja abierta';
+    }
+    if (i != null && m.id == 'productos' && i.stockBajo > 0) {
+      badge = i.stockBajo;
+    }
+
+    return _ItemMenu(
+      icono: m.icono,
+      titulo: m.titulo,
+      color: m.color,
+      activo: widget.currentRoute == m.id,
+      subtitulo: subtitulo,
+      badge: badge,
+      onTap: () => _navigateTo(context, m.pantalla(), m.id),
     );
   }
 
@@ -142,30 +189,32 @@ class AppDrawer extends StatelessWidget {
     Navigator.pop(context); // Cerrar drawer
 
     // Si ya estamos en esa pantalla, no hacer nada
-    if (currentRoute == route) return;
+    if (widget.currentRoute == route) return;
 
-    Navigator.pushReplacement(
+    // El Inicio es la raíz de la navegación: elegirlo vuelve a la raíz,
+    // y el resto de pantallas se apila sobre el Inicio. Así "atrás" regresa
+    // al Inicio y no cierra la app.
+    if (route == 'inicio') {
+      Navigator.popUntil(context, (r) => r.isFirst);
+      return;
+    }
+    Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (_) => screen),
+      (r) => r.isFirst,
     );
   }
 
   Future<void> _handleLogout(BuildContext context) async {
-    print('🚪 [AppDrawer] onTap EJECUTADO - _handleLogout llamado');
-
-    // ⭐ IMPORTANTE: Capturar AuthProvider y Navigator ANTES del diálogo
-    // porque el context podría desmontarse durante el showDialog
+    // Capturar AuthProvider y Navigator antes del diálogo: el context puede desmontarse
     final authProvider = context.read<AuthProvider>();
     final navigator = Navigator.of(context);
 
     // Cerrar el drawer
     if (Navigator.canPop(context)) {
       Navigator.pop(context);
-      print('🚪 [AppDrawer] Drawer cerrado');
     }
 
-    // Mostrar diálogo de confirmación
-    print('🚪 [AppDrawer] Mostrando diálogo de confirmación');
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -173,76 +222,132 @@ class AppDrawer extends StatelessWidget {
         content: const Text('¿Estás seguro de que quieres cerrar sesión?'),
         actions: [
           TextButton(
-            onPressed: () {
-              print('🚪 [AppDrawer] Cancelar presionado');
-              Navigator.pop(context, false);
-            },
+            onPressed: () => Navigator.pop(context, false),
             child: const Text('Cancelar'),
           ),
           TextButton(
-            onPressed: () {
-              print('🚪 [AppDrawer] Confirmar logout presionado');
-              Navigator.pop(context, true);
-            },
+            onPressed: () => Navigator.pop(context, true),
             child: const Text('Cerrar Sesión'),
           ),
         ],
       ),
     );
 
-    print('🚪 [AppDrawer] Diálogo cerrado, confirmado: $confirmed');
-
     if (confirmed == true) {
-      print('🚪 [AppDrawer] Iniciando logout...');
       try {
         await authProvider.logout();
-        print('✅ [AppDrawer] Logout completado');
-
-        print('🚪 [AppDrawer] Navegando a SplashScreen');
         navigator.pushReplacement(
           MaterialPageRoute(builder: (_) => const SplashScreen()),
         );
-        print('✅ [AppDrawer] Navegación completada');
       } catch (e) {
-        print('❌ [AppDrawer] Error en logout: $e');
+        debugPrint('Error en logout: $e');
       }
-    } else {
-      print('🚪 [AppDrawer] Logout cancelado por el usuario');
     }
   }
 }
 
-class _DrawerItem extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final bool isActive;
+/// Opción del menú: icono en recuadro de color, texto, subtítulo opcional y contador opcional.
+class _ItemMenu extends StatelessWidget {
+  final IconData icono;
+  final String titulo;
+  final Color color;
+  final bool activo;
+  final String? subtitulo;
+  final int? badge;
   final VoidCallback onTap;
-  final Color? color;
 
-  const _DrawerItem({
-    required this.icon,
-    required this.title,
-    this.isActive = false,
+  const _ItemMenu({
+    required this.icono,
+    required this.titulo,
+    required this.color,
     required this.onTap,
-    this.color,
+    this.activo = false,
+    this.subtitulo,
+    this.badge,
   });
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      leading: Icon(
-        icon,
-        color: isActive ? Theme.of(context).colorScheme.primary : color,
-      ),
-      title: Text(
-        title,
-        style: TextStyle(
-          fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-          color: isActive ? Theme.of(context).colorScheme.primary : null,
+    final tema = Theme.of(context);
+    final colores = tema.colorScheme;
+    final estado = AppColores.estado(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Material(
+        color: activo ? colores.secondaryContainer : Colors.transparent,
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+            child: Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icono, color: color, size: 20),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        titulo,
+                        style: TextStyle(
+                          fontWeight: activo
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                          color: activo
+                              ? colores.onSecondaryContainer
+                              : colores.onSurface,
+                        ),
+                      ),
+                      if (subtitulo != null)
+                        Text(
+                          subtitulo!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: tema.textTheme.labelSmall?.copyWith(
+                            color: subtitulo!.startsWith('Abierta')
+                                ? estado.verde
+                                : colores.onSurfaceVariant,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                if (badge != null)
+                  Container(
+                    constraints: const BoxConstraints(minWidth: 24),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 7,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColores.rojo,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      '$badge',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ),
       ),
-      selected: isActive,
-      onTap: onTap,
     );
   }
 }

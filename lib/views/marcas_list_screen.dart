@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+
+import '../config/colores_app.dart';
+
 import 'package:provider/provider.dart';
 
 import '../providers/marca_provider.dart';
@@ -65,7 +68,10 @@ class _MarcasListScreenState extends State<MarcasListScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Eliminar', style: TextStyle(color: Colors.red)),
+            child: Text(
+              'Eliminar',
+              style: TextStyle(color: AppColores.estado(context).rojo),
+            ),
           ),
         ],
       ),
@@ -145,9 +151,6 @@ class _MarcasListScreenState extends State<MarcasListScreen> {
                         },
                       )
                     : null,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
               ),
               onChanged: (value) {
                 setState(() {});
@@ -175,7 +178,7 @@ class _MarcasListScreenState extends State<MarcasListScreen> {
                         Icon(
                           Icons.error_outline,
                           size: 64,
-                          color: Colors.red.shade300,
+                          color: AppColores.estado(context).rojo,
                         ),
                         const SizedBox(height: 16),
                         Text(
@@ -202,7 +205,7 @@ class _MarcasListScreenState extends State<MarcasListScreen> {
                         Icon(
                           Icons.inbox,
                           size: 64,
-                          color: Colors.grey.shade300,
+                          color: Theme.of(context).colorScheme.outlineVariant,
                         ),
                         const SizedBox(height: 16),
                         const Text('No hay marcas'),
@@ -213,8 +216,8 @@ class _MarcasListScreenState extends State<MarcasListScreen> {
 
                 return ListView.builder(
                   controller: _scrollController,
-                  itemCount: provider.marcas.length +
-                      (provider.hasMorePages ? 1 : 0),
+                  itemCount:
+                      provider.marcas.length + (provider.hasMorePages ? 1 : 0),
                   itemBuilder: (context, index) {
                     // Indicador de carga al final
                     if (index == provider.marcas.length) {
@@ -241,7 +244,9 @@ class _MarcasListScreenState extends State<MarcasListScreen> {
                         subtitle: Text(
                           marca.activo ? 'Activo' : 'Inactivo',
                           style: TextStyle(
-                            color: marca.activo ? Colors.green : Colors.grey,
+                            color: marca.activo
+                                ? AppColores.estado(context).verde
+                                : AppColores.estado(context).gris,
                           ),
                         ),
                         trailing: PopupMenuButton(
@@ -252,17 +257,18 @@ class _MarcasListScreenState extends State<MarcasListScreen> {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (_) => MarcaFormScreen(
-                                      marca: marca,
-                                    ),
+                                    builder: (_) =>
+                                        MarcaFormScreen(marca: marca),
                                   ),
                                 );
                               },
                             ),
                             PopupMenuItem(
-                              child: const Text(
+                              child: Text(
                                 'Eliminar',
-                                style: TextStyle(color: Colors.red),
+                                style: TextStyle(
+                                  color: AppColores.estado(context).rojo,
+                                ),
                               ),
                               onTap: () => _handleDelete(marca.id),
                             ),
@@ -272,9 +278,7 @@ class _MarcasListScreenState extends State<MarcasListScreen> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => MarcaFormScreen(
-                                marca: marca,
-                              ),
+                              builder: (_) => MarcaFormScreen(marca: marca),
                             ),
                           );
                         },

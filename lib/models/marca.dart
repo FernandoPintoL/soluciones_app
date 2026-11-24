@@ -3,11 +3,7 @@ class Marca {
   final String nombre;
   final bool activo;
 
-  Marca({
-    required this.id,
-    required this.nombre,
-    this.activo = true,
-  });
+  Marca({required this.id, required this.nombre, this.activo = true});
 
   factory Marca.fromJson(Map<String, dynamic> json) {
     return Marca(
@@ -18,17 +14,10 @@ class Marca {
   }
 
   Map<String, dynamic> toJson() {
-    return {
-      'nombre': nombre,
-      'activo': activo,
-    };
+    return {'nombre': nombre, 'activo': activo};
   }
 
-  Marca copyWith({
-    int? id,
-    String? nombre,
-    bool? activo,
-  }) {
+  Marca copyWith({int? id, String? nombre, bool? activo}) {
     return Marca(
       id: id ?? this.id,
       nombre: nombre ?? this.nombre,

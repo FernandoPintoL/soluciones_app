@@ -96,6 +96,18 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
       appBar: AppBar(
         title: const Text('Escanear Código de Barra'),
         actions: [
+          // Linterna: se refleja según el estado real del controlador
+          ValueListenableBuilder<MobileScannerState>(
+            valueListenable: controller,
+            builder: (context, state, _) {
+              final encendida = state.torchState == TorchState.on;
+              return IconButton(
+                tooltip: encendida ? 'Apagar linterna' : 'Encender linterna',
+                icon: Icon(encendida ? Icons.flash_on : Icons.flash_off),
+                onPressed: () => controller.toggleTorch(),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.close),
             onPressed: () => Navigator.pop(context),
@@ -165,9 +177,13 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
             right: 0,
             child: Center(
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surface.withOpacity(0.9),
+                  color: Theme.of(context).colorScheme.surface
+                      .withValues(alpha: 0.9),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
                     color: Theme.of(context).colorScheme.outline,

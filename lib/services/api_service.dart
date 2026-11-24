@@ -1,5 +1,7 @@
 import 'dart:convert';
+
 import 'package:http/http.dart' as http;
+
 import '../config/env_config.dart';
 import '../models/producto.dart';
 import '../models/categoria.dart';
@@ -41,14 +43,12 @@ class ApiService {
   Future<List<Producto>> getProductos({int page = 1, int limit = 20}) async {
     try {
       // Usar endpoint -all para obtener TODOS los productos sin filtros
-      final url = '${EnvConfig.baseUrl}/app/productos-all?page=$page&per_page=$limit';
+      final url =
+          '${EnvConfig.baseUrl}/app/productos-all?page=$page&per_page=$limit';
       print('🚀 [ApiService] GET: $url');
       print('📤 [ApiService] Headers: ${_getHeaders()}');
 
-      final response = await http.get(
-        Uri.parse(url),
-        headers: _getHeaders(),
-      );
+      final response = await http.get(Uri.parse(url), headers: _getHeaders());
 
       print('📥 [ApiService] Status Code: ${response.statusCode}');
       print('📥 [ApiService] Response: ${response.body}');
@@ -97,7 +97,9 @@ class ApiService {
       if (response.statusCode == 200) {
         final json = jsonDecode(response.body);
         print('📥 [ApiService] json[data] type: ${json['data'].runtimeType}');
-        print('📥 [ApiService] json[data] keys: ${json['data'] is Map ? json['data'].keys : 'N/A'}');
+        print(
+          '📥 [ApiService] json[data] keys: ${json['data'] is Map ? json['data'].keys : 'N/A'}',
+        );
 
         // Manejar estructura anidada
         var productData;
@@ -115,7 +117,9 @@ class ApiService {
           } else if (dataValue['id'] != null) {
             // Estructura simple: el producto está directamente en data
             productData = dataValue;
-            print('📥 [ApiService] Usando estructura simple (id=${dataValue['id']})');
+            print(
+              '📥 [ApiService] Usando estructura simple (id=${dataValue['id']})',
+            );
           }
         } else if (json['data'] is List && json['data'].isNotEmpty) {
           // Si data es un array, tomar el primero
@@ -126,7 +130,9 @@ class ApiService {
           print('📥 [ApiService] Usando json completo');
         }
 
-        print('✅ [ApiService] Producto obtenido con ${productData['stock']?.length ?? 0} stocks');
+        print(
+          '✅ [ApiService] Producto obtenido con ${productData['stock']?.length ?? 0} stocks',
+        );
         return Producto.fromJson(productData ?? json);
       } else {
         throw Exception('Error al cargar producto: ${response.statusCode}');
@@ -144,12 +150,16 @@ class ApiService {
       final body = producto.toJson();
       final bodyJson = jsonEncode(body);
 
-      print('🚀 [ApiService CREATE] ============================================');
+      print(
+        '🚀 [ApiService CREATE] ============================================',
+      );
       print('🚀 [ApiService CREATE] ENVIANDO NUEVO PRODUCTO');
       print('🚀 [ApiService CREATE] URL: POST $url');
       print('📤 [ApiService CREATE] DATOS ENVIADOS:');
       print('📤 [ApiService CREATE] ${jsonEncode(body)}');
-      print('🚀 [ApiService CREATE] ============================================');
+      print(
+        '🚀 [ApiService CREATE] ============================================',
+      );
 
       final response = await http.post(
         Uri.parse(url),
@@ -157,22 +167,32 @@ class ApiService {
         body: bodyJson,
       );
 
-      print('📥 [ApiService CREATE] ============================================');
+      print(
+        '📥 [ApiService CREATE] ============================================',
+      );
       print('📥 [ApiService CREATE] RESPUESTA RECIBIDA');
       print('📥 [ApiService CREATE] Status: ${response.statusCode}');
       print('📥 [ApiService CREATE] DATOS: ${response.body}');
-      print('📥 [ApiService CREATE] ============================================');
+      print(
+        '📥 [ApiService CREATE] ============================================',
+      );
 
       if (response.statusCode == 201 || response.statusCode == 200) {
         final json = jsonDecode(response.body);
         // Manejar estructura anidada
-        final productData = json['data'] is Map ? (json['data']['data'] ?? json['data']) : json['data'];
-        print('✅ [ApiService CREATE] Producto creado exitosamente (ID: ${productData['id']})');
+        final productData = json['data'] is Map
+            ? (json['data']['data'] ?? json['data'])
+            : json['data'];
+        print(
+          '✅ [ApiService CREATE] Producto creado exitosamente (ID: ${productData['id']})',
+        );
         return Producto.fromJson(productData ?? json);
       } else if (response.statusCode == 422) {
         final json = jsonDecode(response.body);
         print('❌ [ApiService CREATE] Error de validación: ${json['message']}');
-        print('❌ [ApiService CREATE] Errores: ${json['errors'] ?? 'No especificados'}');
+        print(
+          '❌ [ApiService CREATE] Errores: ${json['errors'] ?? 'No especificados'}',
+        );
         throw Exception(json['message'] ?? 'Error de validación');
       } else {
         print('❌ [ApiService CREATE] Error HTTP ${response.statusCode}');
@@ -191,12 +211,16 @@ class ApiService {
       final body = producto.toJson();
       final bodyJson = jsonEncode(body);
 
-      print('🔄 [ApiService UPDATE] ============================================');
+      print(
+        '🔄 [ApiService UPDATE] ============================================',
+      );
       print('🔄 [ApiService UPDATE] ACTUALIZANDO PRODUCTO');
       print('🔄 [ApiService UPDATE] URL: PUT $url');
       print('📤 [ApiService UPDATE] DATOS ENVIADOS:');
       print('📤 [ApiService UPDATE] ${jsonEncode(body)}');
-      print('🔄 [ApiService UPDATE] ============================================');
+      print(
+        '🔄 [ApiService UPDATE] ============================================',
+      );
 
       final response = await http.put(
         Uri.parse(url),
@@ -204,22 +228,32 @@ class ApiService {
         body: bodyJson,
       );
 
-      print('📥 [ApiService UPDATE] ============================================');
+      print(
+        '📥 [ApiService UPDATE] ============================================',
+      );
       print('📥 [ApiService UPDATE] RESPUESTA RECIBIDA');
       print('📥 [ApiService UPDATE] Status: ${response.statusCode}');
       print('📥 [ApiService UPDATE] DATOS: ${response.body}');
-      print('📥 [ApiService UPDATE] ============================================');
+      print(
+        '📥 [ApiService UPDATE] ============================================',
+      );
 
       if (response.statusCode == 200) {
         final json = jsonDecode(response.body);
         // Manejar estructura anidada
-        final productData = json['data'] is Map ? (json['data']['data'] ?? json['data']) : json['data'];
-        print('✅ [ApiService UPDATE] Producto actualizado exitosamente (ID: $id)');
+        final productData = json['data'] is Map
+            ? (json['data']['data'] ?? json['data'])
+            : json['data'];
+        print(
+          '✅ [ApiService UPDATE] Producto actualizado exitosamente (ID: $id)',
+        );
         return Producto.fromJson(productData ?? json);
       } else if (response.statusCode == 422) {
         final json = jsonDecode(response.body);
         print('❌ [ApiService UPDATE] Error de validación: ${json['message']}');
-        print('❌ [ApiService UPDATE] Errores: ${json['errors'] ?? 'No especificados'}');
+        print(
+          '❌ [ApiService UPDATE] Errores: ${json['errors'] ?? 'No especificados'}',
+        );
         throw Exception(json['message'] ?? 'Error de validación');
       } else {
         print('❌ [ApiService UPDATE] Error HTTP ${response.statusCode}');
@@ -236,21 +270,29 @@ class ApiService {
     try {
       final url = '${EnvConfig.baseUrl}/app/productos/$id';
 
-      print('🗑️ [ApiService DELETE] ============================================');
+      print(
+        '🗑️ [ApiService DELETE] ============================================',
+      );
       print('🗑️ [ApiService DELETE] ELIMINANDO PRODUCTO');
       print('🗑️ [ApiService DELETE] URL: DELETE $url');
-      print('🗑️ [ApiService DELETE] ============================================');
+      print(
+        '🗑️ [ApiService DELETE] ============================================',
+      );
 
       final response = await http.delete(
         Uri.parse(url),
         headers: _getHeaders(),
       );
 
-      print('📥 [ApiService DELETE] ============================================');
+      print(
+        '📥 [ApiService DELETE] ============================================',
+      );
       print('📥 [ApiService DELETE] RESPUESTA RECIBIDA');
       print('📥 [ApiService DELETE] Status: ${response.statusCode}');
       print('📥 [ApiService DELETE] DATOS: ${response.body}');
-      print('📥 [ApiService DELETE] ============================================');
+      print(
+        '📥 [ApiService DELETE] ============================================',
+      );
 
       if (response.statusCode != 200 && response.statusCode != 204) {
         print('❌ [ApiService DELETE] Error HTTP ${response.statusCode}');
@@ -266,17 +308,19 @@ class ApiService {
   /// Buscar productos
   Future<List<Producto>> searchProductos(String query) async {
     try {
-      final response = await http.get(
-        Uri.parse('${EnvConfig.baseUrl}/app/productos/buscar?q=$query'),
-        headers: _getHeaders(),
-      );
+      // todos=1: catálogo completo (sin reglas de venta). limite=100: el backend
+      // devuelve 10 por defecto y el producto buscado podía quedar fuera
+      final uri = Uri.parse(
+        '${EnvConfig.baseUrl}/app/productos/buscar',
+      ).replace(queryParameters: {'q': query, 'todos': '1', 'limite': '100'});
+      final response = await http.get(uri, headers: _getHeaders());
 
       if (response.statusCode == 200) {
         final json = jsonDecode(response.body);
         // Manejar estructura anidada
         final List<dynamic> data = json['data'] is Map
-          ? (json['data']['data'] ?? [])
-          : (json['data'] ?? []);
+            ? (json['data']['data'] ?? [])
+            : (json['data'] ?? []);
         return data.map((p) => Producto.fromJson(p)).toList();
       } else {
         throw Exception('Error en búsqueda: ${response.statusCode}');
@@ -291,7 +335,9 @@ class ApiService {
     try {
       print('📦 [ApiService] Cargando stocks del producto: $productoId');
       final response = await http.get(
-        Uri.parse('${EnvConfig.baseUrl}/inventario/stocks?producto_id=$productoId'),
+        Uri.parse(
+          '${EnvConfig.baseUrl}/inventario/stocks?producto_id=$productoId',
+        ),
         headers: _getHeaders(),
       );
 
@@ -313,7 +359,8 @@ class ApiService {
           if (stock is! Map) return {};
 
           final cantidad = stock['cantidad'] ?? stock['stock_cantidad'] ?? 0;
-          final cantidadDisponible = stock['cantidad_disponible'] ?? stock['stock_cantidad'] ?? 0;
+          final cantidadDisponible =
+              stock['cantidad_disponible'] ?? stock['stock_cantidad'] ?? 0;
 
           // Convertir cantidad a int de forma segura
           int cantidadInt = 0;
@@ -331,7 +378,8 @@ class ApiService {
           } else if (cantidadDisponible is double) {
             cantidadDisponibleInt = cantidadDisponible.toInt();
           } else if (cantidadDisponible is String) {
-            cantidadDisponibleInt = (double.tryParse(cantidadDisponible) ?? 0).toInt();
+            cantidadDisponibleInt = (double.tryParse(cantidadDisponible) ?? 0)
+                .toInt();
           }
 
           return {
@@ -342,15 +390,21 @@ class ApiService {
             'cantidad_disponible': cantidadDisponibleInt,
             'lote': stock['lote'],
             'fecha_vencimiento': stock['fecha_vencimiento'],
-            'almacen_nombre': stock['almacen'] != null ? stock['almacen']['nombre'] as String : 'Almacén ${stock['almacen_id']}',
-            'sector_nombre': stock['sector'] != null ? stock['sector']['nombre'] as String : 'Sector ${stock['sector_id']}',
+            'almacen_nombre': stock['almacen'] != null
+                ? stock['almacen']['nombre'] as String
+                : 'Almacén ${stock['almacen_id']}',
+            'sector_nombre': stock['sector'] != null
+                ? stock['sector']['nombre'] as String
+                : 'Sector ${stock['sector_id']}',
           };
         }).toList();
 
         print('✅ [ApiService] Stocks cargados: ${stocks.length}');
         return stocks;
       } else {
-        print('⚠️ [ApiService] No se encontraron stocks: ${response.statusCode}');
+        print(
+          '⚠️ [ApiService] No se encontraron stocks: ${response.statusCode}',
+        );
         return [];
       }
     } catch (e) {
@@ -364,7 +418,9 @@ class ApiService {
     try {
       print('🔍 [ApiService] Buscando producto con código: $codigoBarras');
       final response = await http.get(
-        Uri.parse('${EnvConfig.baseUrl}/app/productos/buscar-codigo-barras?codigo=$codigoBarras'),
+        Uri.parse(
+          '${EnvConfig.baseUrl}/app/productos/buscar-codigo-barras?codigo=$codigoBarras',
+        ),
         headers: _getHeaders(),
       );
 
@@ -384,12 +440,18 @@ class ApiService {
 
         if (json['success'] == true && json['data'] != null) {
           final productData = json['data'] is Map
-            ? (json['data'] is Map && json['data']['data'] != null ? json['data']['data'] : json['data'])
-            : json['data'];
-          print('✅ [ApiService] Producto encontrado: ${productData['nombre'] ?? 'Sin nombre'}');
+              ? (json['data'] is Map && json['data']['data'] != null
+                    ? json['data']['data']
+                    : json['data'])
+              : json['data'];
+          print(
+            '✅ [ApiService] Producto encontrado: ${productData['nombre'] ?? 'Sin nombre'}',
+          );
           return Producto.fromJson(productData);
         } else if (json['success'] == false) {
-          print('⚠️ [ApiService] ${json['message'] ?? 'Producto no encontrado'}');
+          print(
+            '⚠️ [ApiService] ${json['message'] ?? 'Producto no encontrado'}',
+          );
           return null;
         }
         return null;
@@ -417,7 +479,8 @@ class ApiService {
     final response = await http.get(
       Uri.parse('${EnvConfig.baseUrl}/app/inventario/productos-stock').replace(
         queryParameters: {
-          if (search != null && search.trim().isNotEmpty) 'search': search.trim(),
+          if (search != null && search.trim().isNotEmpty)
+            'search': search.trim(),
           if (ids != null && ids.isNotEmpty) 'ids': ids.join(','),
           'limite': '$limite',
         },
@@ -528,8 +591,9 @@ class ApiService {
     String termino,
   ) async {
     final response = await http.get(
-      Uri.parse('${EnvConfig.baseUrl}/app/fraccionamientos/productos-disponibles')
-          .replace(queryParameters: {'search': termino}),
+      Uri.parse(
+        '${EnvConfig.baseUrl}/app/fraccionamientos/productos-disponibles',
+      ).replace(queryParameters: {'search': termino}),
       headers: _getHeaders(),
     );
     if (response.statusCode != 200) {
@@ -538,7 +602,10 @@ class ApiService {
     final json = jsonDecode(response.body);
     final data = json is Map ? json['data'] : null;
     return data is List
-        ? data.whereType<Map>().map((p) => Map<String, dynamic>.from(p)).toList()
+        ? data
+              .whereType<Map>()
+              .map((p) => Map<String, dynamic>.from(p))
+              .toList()
         : [];
   }
 
@@ -550,12 +617,13 @@ class ApiService {
   ) async {
     try {
       final response = await http.get(
-        Uri.parse('${EnvConfig.baseUrl}/productos/conversiones/comunes').replace(
-          queryParameters: {
-            'unidad_base_id': '$unidadBaseId',
-            'unidad_destino_id': '$unidadDestinoId',
-          },
-        ),
+        Uri.parse('${EnvConfig.baseUrl}/productos/conversiones/comunes')
+            .replace(
+              queryParameters: {
+                'unidad_base_id': '$unidadBaseId',
+                'unidad_destino_id': '$unidadDestinoId',
+              },
+            ),
         headers: _getHeaders(),
       );
       if (response.statusCode != 200) return null;
@@ -577,7 +645,10 @@ class ApiService {
   /// Devuelve null si se eliminó, o el mensaje de error del servidor.
   /// Con [forzar] = true también elimina un lote con stock: el servidor registra antes
   /// una salida de ajuste que lo deja en 0 (lo reservado nunca se elimina).
-  Future<String?> eliminarStockProducto(int stockProductoId, {bool forzar = false}) async {
+  Future<String?> eliminarStockProducto(
+    int stockProductoId, {
+    bool forzar = false,
+  }) async {
     try {
       final response = await http.delete(
         Uri.parse(
@@ -613,7 +684,9 @@ class ApiService {
     String? fechaVencimiento,
   }) async {
     try {
-      print('🔄 [ApiService CREATE STOCK] URL: ${EnvConfig.baseUrl}/inventario/crear-stock-producto');
+      print(
+        '🔄 [ApiService CREATE STOCK] URL: ${EnvConfig.baseUrl}/inventario/crear-stock-producto',
+      );
 
       final body = {
         'producto_id': productoId,
@@ -655,10 +728,14 @@ class ApiService {
     bool esPrincipal = true,
   }) async {
     try {
-      print('📛 [ApiService CREATE BARCODE] URL: ${EnvConfig.baseUrl}/app/productos/$productoId/codigos-barra');
+      print(
+        '📛 [ApiService CREATE BARCODE] URL: ${EnvConfig.baseUrl}/app/productos/$productoId/codigos-barra',
+      );
 
       final response = await http.post(
-        Uri.parse('${EnvConfig.baseUrl}/app/productos/$productoId/codigos-barra'),
+        Uri.parse(
+          '${EnvConfig.baseUrl}/app/productos/$productoId/codigos-barra',
+        ),
         headers: _getHeaders(),
         body: jsonEncode({
           'codigo': codigo,
@@ -670,7 +747,9 @@ class ApiService {
       print('📥 [ApiService CREATE BARCODE] Response: ${response.body}');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        print('✅ [ApiService CREATE BARCODE] Código de barra creado exitosamente');
+        print(
+          '✅ [ApiService CREATE BARCODE] Código de barra creado exitosamente',
+        );
         return true;
       } else {
         print('⚠️ [ApiService CREATE BARCODE] Error: ${response.statusCode}');
@@ -685,10 +764,14 @@ class ApiService {
   // Eliminar todos los códigos de barra de un producto
   Future<bool> eliminarCodigosBarraProducto(int productoId) async {
     try {
-      print('🗑️ [ApiService DELETE BARCODE] URL: ${EnvConfig.baseUrl}/app/productos/$productoId/codigos-barra');
+      print(
+        '🗑️ [ApiService DELETE BARCODE] URL: ${EnvConfig.baseUrl}/app/productos/$productoId/codigos-barra',
+      );
 
       final response = await http.delete(
-        Uri.parse('${EnvConfig.baseUrl}/app/productos/$productoId/codigos-barra'),
+        Uri.parse(
+          '${EnvConfig.baseUrl}/app/productos/$productoId/codigos-barra',
+        ),
         headers: _getHeaders(),
       );
 
@@ -696,7 +779,9 @@ class ApiService {
       print('📥 [ApiService DELETE BARCODE] Response: ${response.body}');
 
       if (response.statusCode == 200 || response.statusCode == 204) {
-        print('✅ [ApiService DELETE BARCODE] Códigos de barra eliminados exitosamente');
+        print(
+          '✅ [ApiService DELETE BARCODE] Códigos de barra eliminados exitosamente',
+        );
         return true;
       } else {
         print('⚠️ [ApiService DELETE BARCODE] Error: ${response.statusCode}');
@@ -727,9 +812,7 @@ class ApiService {
       request.headers.addAll(_getHeaders());
 
       // Agregar archivo
-      request.files.add(
-        await http.MultipartFile.fromPath('imagen', imagePath),
-      );
+      request.files.add(await http.MultipartFile.fromPath('imagen', imagePath));
 
       // Agregar parámetros
       request.fields['es_principal'] = esPrincipal ? '1' : '0';
@@ -792,7 +875,7 @@ class ApiService {
             'last_page': data['last_page'],
             'total': data['total'],
             'per_page': data['per_page'],
-          }
+          },
         };
       }
 
@@ -913,7 +996,7 @@ class ApiService {
             'last_page': data['last_page'],
             'total': data['total'],
             'per_page': data['per_page'],
-          }
+          },
         };
       }
 
@@ -1033,7 +1116,7 @@ class ApiService {
             'last_page': data['last_page'],
             'total': data['total'],
             'per_page': data['per_page'],
-          }
+          },
         };
       }
 

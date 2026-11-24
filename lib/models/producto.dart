@@ -1,3 +1,18 @@
+/// Precio activo del producto para mostrar en listado y ficha.
+class PrecioResumen {
+  final String nombre;
+  final double monto;
+
+  /// true = precio de una unidad de fraccionamiento (tiene unidad_medida_id)
+  final bool porUnidad;
+
+  const PrecioResumen({
+    required this.nombre,
+    required this.monto,
+    required this.porUnidad,
+  });
+}
+
 class Producto {
   final int id;
   final String nombre;
@@ -7,7 +22,7 @@ class Producto {
   final int? unidadMedidaId;
   final int? categoriaId;
   final int? marcaId;
-  final String? marcaNombre;  // Nombre de la marca
+  final String? marcaNombre; // Nombre de la marca
   final int? proveedorId;
   final int stockMinimo;
   final int stockMaximo;
@@ -24,19 +39,27 @@ class Producto {
   final String? principioActivo;
   final String? usoMedicacion;
   final DateTime? fechaCreacion;
-  final List<String> imagenesUrls;  // URLs de imágenes
-  final String? codigosBarra;  // Códigos de barra
-  final List<Map<String, dynamic>> stocks;  // Stocks por almacén/sector
-  final List<Map<String, dynamic>> stockLimites;  // Límites por almacén/sector
+  final List<String> imagenesUrls; // URLs de imágenes
+  final String? codigosBarra; // Códigos de barra
+  final List<Map<String, dynamic>> stocks; // Stocks por almacén/sector
+  final List<Map<String, dynamic>> stockLimites; // Límites por almacén/sector
   // Fraccionamiento: null = no informado (al guardar no se tocan las conversiones)
   final bool? esFraccionado;
-  final List<Map<String, dynamic>> conversiones;  // Conversiones de unidad / producto hijo
+  // Precios de unidad base por tipo de precio (tipo_precio_id → monto).
+  // null = no informado: al guardar no se tocan los precios del producto.
+  final Map<int, double>? preciosPorTipo;
+  // Todos los precios activos (base y fraccionamiento) para mostrar
+  final List<PrecioResumen> preciosActivos;
+  final List<Map<String, dynamic>>
+  conversiones; // Conversiones de unidad / producto hijo
 
   // Obtener la primera imagen (principal)
-  String? get imagenPrincipal => imagenesUrls.isNotEmpty ? imagenesUrls.first : null;
+  String? get imagenPrincipal =>
+      imagenesUrls.isNotEmpty ? imagenesUrls.first : null;
 
   // Verificar si tiene código de barra
-  bool get tieneCodigoBarras => codigosBarra != null && codigosBarra!.isNotEmpty;
+  bool get tieneCodigoBarras =>
+      codigosBarra != null && codigosBarra!.isNotEmpty;
 
   // Obtener stock total (suma de TODOS los lotes)
   int get stockTotal {
@@ -93,6 +116,8 @@ class Producto {
     this.stockLimites = const [],
     this.esFraccionado,
     this.conversiones = const [],
+    this.preciosPorTipo,
+    this.preciosActivos = const [],
   });
 
   factory Producto.fromJson(Map<String, dynamic> json) {
@@ -102,7 +127,7 @@ class Producto {
     if (imagenes != null && imagenes.isNotEmpty) {
       // Ordenar por es_principal (true primero), luego por orden
       final imagenesOrdenadas = List<Map<String, dynamic>>.from(
-        imagenes.map((img) => img as Map<String, dynamic>)
+        imagenes.map((img) => img as Map<String, dynamic>),
       );
       imagenesOrdenadas.sort((a, b) {
         final aPrincipal = a['es_principal'] == true ? 0 : 1;
@@ -111,7 +136,9 @@ class Producto {
         return (a['orden'] ?? 0).compareTo(b['orden'] ?? 0);
       });
       imagenesUrls.addAll(
-        imagenesOrdenadas.map((img) => (img['url'] as String?) ?? '').where((url) => url.isNotEmpty),
+        imagenesOrdenadas
+            .map((img) => (img['url'] as String?) ?? '')
+            .where((url) => url.isNotEmpty),
       );
     }
 
@@ -152,7 +179,7 @@ class Producto {
       try {
         // Buscar precio de COSTO
         final precioCosto = preciosArray.firstWhere(
-          (p) => p is Map && p['tipo_precio'] is Map && p['tipo_precio']['codigo'] == 'COSTO',
+          (p) => p is Map && _codigoTipo(p) == 'COSTO',
           orElse: () => null,
         );
         if (precioCosto != null) {
@@ -161,7 +188,7 @@ class Producto {
 
         // Buscar precio de VENTA
         final precioVentaMap = preciosArray.firstWhere(
-          (p) => p is Map && p['tipo_precio'] is Map && p['tipo_precio']['codigo'] == 'VENTA',
+          (p) => p is Map && _codigoTipo(p) == 'VENTA',
           orElse: () => null,
         );
         if (precioVentaMap != null) {
@@ -173,8 +200,12 @@ class Producto {
     }
 
     // Fallback a campos directos si existen
-    precioCompra ??= json['precio_compra'] != null ? double.parse(json['precio_compra'].toString()) : null;
-    precioVenta ??= json['precio_venta'] != null ? double.parse(json['precio_venta'].toString()) : null;
+    precioCompra ??= json['precio_compra'] != null
+        ? double.parse(json['precio_compra'].toString())
+        : null;
+    precioVenta ??= json['precio_venta'] != null
+        ? double.parse(json['precio_venta'].toString())
+        : null;
 
     // Extraer nombre de marca desde el objeto marca (si viene en el response)
     String? marcaNombre;
@@ -200,27 +231,104 @@ class Producto {
       esProductoComida: json['es_producto_comida'] ?? false,
       permitirVentaSinStock: json['permite_venta_sin_stock'] ?? false,
       esProductoAdicional: json['es_producto_adicional'] ?? false,
-      puedeRecbirProductoAdicional: json['puede_tener_producto_adicional'] ?? false,
+      puedeRecbirProductoAdicional:
+          json['puede_tener_producto_adicional'] ?? false,
       visibleApp: json['visible_app'] ?? true,
       esDeProduccion: json['es_de_produccion'] ?? false,
-      limiteventa: json['limite_venta'] != null ? double.parse(json['limite_venta'].toString()) : null,
+      limiteventa: json['limite_venta'] != null
+          ? double.parse(json['limite_venta'].toString())
+          : null,
       precioCompra: precioCompra,
       precioVenta: precioVenta,
       principioActivo: json['principio_activo'],
       usoMedicacion: json['uso_de_medicacion'],
-      fechaCreacion: json['fecha_creacion'] != null ? DateTime.parse(json['fecha_creacion']) : null,
+      fechaCreacion: json['fecha_creacion'] != null
+          ? DateTime.parse(json['fecha_creacion'])
+          : null,
       imagenesUrls: imagenesUrls,
       codigosBarra: codigoBarraPrincipal,
-      stocks: _extractStocks(json['stock'] ?? json['stocks']),  // Intenta 'stock' o 'stocks'
-      stockLimites: _extractStockLimites(json['stockLimites'] ?? json['stock_limites']),  // Intenta camelCase o snake_case
-      esFraccionado: json['es_fraccionado'] is bool ? json['es_fraccionado'] as bool : null,
+      stocks: _extractStocks(
+        json['stock'] ?? json['stocks'],
+      ), // Intenta 'stock' o 'stocks'
+      stockLimites: _extractStockLimites(
+        json['stockLimites'] ?? json['stock_limites'],
+      ), // Intenta camelCase o snake_case
+      preciosPorTipo: _extractPreciosPorTipo(
+        json['precios'],
+        json['unidad_medida_id'],
+      ),
+      preciosActivos: _extractPreciosResumen(
+        json['precios'],
+        json['unidad_medida_id'],
+      ),
+      esFraccionado: json['es_fraccionado'] is bool
+          ? json['es_fraccionado'] as bool
+          : null,
       conversiones: json['conversiones'] is List
           ? (json['conversiones'] as List)
-              .whereType<Map>()
-              .map((c) => Map<String, dynamic>.from(c))
-              .toList()
+                .whereType<Map>()
+                .map((c) => Map<String, dynamic>.from(c))
+                .toList()
           : const [],
     );
+  }
+
+  /// Código del tipo de precio. Laravel lo manda como `tipoPrecio` (o `tipo_precio`).
+  static String? _codigoTipo(dynamic p) {
+    if (p is! Map) return null;
+    final tipo = p['tipoPrecio'] ?? p['tipo_precio'];
+    return tipo is Map ? tipo['codigo']?.toString() : null;
+  }
+
+  /// Todos los precios activos, con el nombre del tipo, para mostrarlos.
+  /// Un precio es "base" si no tiene unidad o si su unidad es la del propio producto.
+  /// Solo los precios en otra unidad (fraccionamiento) quedan fuera del formulario.
+  static bool _esUnidadBase(dynamic unidad, dynamic unidadProducto) =>
+      unidad == null || '$unidad' == '$unidadProducto';
+
+  static List<PrecioResumen> _extractPreciosResumen(
+    dynamic preciosData,
+    dynamic unidadProducto,
+  ) {
+    if (preciosData is! List) return const [];
+    final resultado = <PrecioResumen>[];
+    for (final p in preciosData) {
+      if (p is! Map || p['activo'] == false) continue;
+      final monto = double.tryParse('${p['precio']}');
+      if (monto == null) continue;
+      final tipo = p['tipoPrecio'] ?? p['tipo_precio'];
+      final nombre = (tipo is Map ? tipo['nombre'] : null) ?? p['nombre'];
+      resultado.add(
+        PrecioResumen(
+          nombre: (nombre ?? 'Precio').toString(),
+          monto: monto,
+          porUnidad: !_esUnidadBase(p['unidad_medida_id'], unidadProducto),
+        ),
+      );
+    }
+    return resultado;
+  }
+
+  /// Precios de unidad base activos (sin unidad_medida_id), por tipo de precio.
+  static Map<int, double>? _extractPreciosPorTipo(
+    dynamic preciosData,
+    dynamic unidadProducto,
+  ) {
+    if (preciosData is! List) return null;
+    final resultado = <int, double>{};
+    for (final p in preciosData) {
+      if (p is! Map) continue;
+      if (!_esUnidadBase(p['unidad_medida_id'], unidadProducto) ||
+          p['activo'] == false) {
+        continue;
+      }
+      final tipoId = p['tipo_precio_id'];
+      final id = tipoId is int ? tipoId : int.tryParse('$tipoId');
+      final monto = double.tryParse('${p['precio']}');
+      if (id == null || monto == null) continue;
+      resultado[id] = monto;
+    }
+    return resultado;
   }
 
   static List<Map<String, dynamic>> _extractStocks(dynamic stocksData) {
@@ -261,7 +369,8 @@ class Producto {
       } else if (cantidadDisponible is double) {
         cantidadDisponibleInt = cantidadDisponible.toInt();
       } else if (cantidadDisponible is String) {
-        cantidadDisponibleInt = (double.tryParse(cantidadDisponible) ?? 0).toInt();
+        cantidadDisponibleInt = (double.tryParse(cantidadDisponible) ?? 0)
+            .toInt();
       }
 
       // print('  📦 Stock: id=${stock['id']}, cantidad=$cantidad → $cantidadInt, almacen=${stock['almacen_id']}, sector=${stock['sector_id']}');
@@ -274,13 +383,19 @@ class Producto {
         'cantidad_disponible': cantidadDisponibleInt,
         'lote': stock['lote'],
         'fecha_vencimiento': stock['fecha_vencimiento'],
-        'almacen_nombre': stock['almacen'] != null ? stock['almacen']['nombre'] as String : 'Almacén ${stock['almacen_id']}',
-        'sector_nombre': stock['sector'] != null ? stock['sector']['nombre'] as String : 'Sector ${stock['sector_id']}',
+        'almacen_nombre': stock['almacen'] != null
+            ? stock['almacen']['nombre'] as String
+            : 'Almacén ${stock['almacen_id']}',
+        'sector_nombre': stock['sector'] != null
+            ? stock['sector']['nombre'] as String
+            : 'Sector ${stock['sector_id']}',
       };
     }).toList();
   }
 
-  static List<Map<String, dynamic>> _extractStockLimites(dynamic stockLimitesData) {
+  static List<Map<String, dynamic>> _extractStockLimites(
+    dynamic stockLimitesData,
+  ) {
     if (stockLimitesData is! List) {
       return [];
     }
@@ -295,8 +410,12 @@ class Producto {
         'sector_id': sl['sector_id'],
         'stock_minimo': sl['stock_minimo'],
         'stock_maximo': sl['stock_maximo'],
-        'almacen_nombre': sl['almacen'] != null ? sl['almacen']['nombre'] as String : 'Almacén ${sl['almacen_id']}',
-        'sector_nombre': sl['sector'] != null ? sl['sector']['nombre'] as String : 'Sector ${sl['sector_id']}',
+        'almacen_nombre': sl['almacen'] != null
+            ? sl['almacen']['nombre'] as String
+            : 'Almacén ${sl['almacen_id']}',
+        'sector_nombre': sl['sector'] != null
+            ? sl['sector']['nombre'] as String
+            : 'Sector ${sl['sector_id']}',
       };
     }).toList();
   }
@@ -311,9 +430,9 @@ class Producto {
       'descripcion': descripcion,
       'peso': peso,
       'unidad_medida_id': sanitizeId(unidadMedidaId),
-      'categoria_id': sanitizeId(categoriaId),      // 🔥 FIX: Permitir null
-      'marca_id': sanitizeId(marcaId),              // 🔥 FIX: Permitir null
-      'proveedor_id': sanitizeId(proveedorId),      // 🔥 FIX: Permitir null
+      'categoria_id': sanitizeId(categoriaId), // 🔥 FIX: Permitir null
+      'marca_id': sanitizeId(marcaId), // 🔥 FIX: Permitir null
+      'proveedor_id': sanitizeId(proveedorId), // 🔥 FIX: Permitir null
       'stock_minimo': stockMinimo,
       'stock_maximo': stockMaximo,
       'activo': activo ? 1 : 0,
@@ -324,8 +443,17 @@ class Producto {
       'visible_app': visibleApp ? 1 : 0,
       'es_de_produccion': esDeProduccion ? 1 : 0,
       'limite_venta': limiteventa,
-      'precio_compra': precioCompra,
-      'precio_venta': precioVenta,
+      // Con lista de precios se envía 'precios' y no los campos planos
+      if (preciosPorTipo == null) ...{
+        'precio_compra': precioCompra,
+        'precio_venta': precioVenta,
+      },
+      // Lista completa de precios de unidad base: lo que no viene se quita
+      if (preciosPorTipo != null)
+        'precios': [
+          for (final e in preciosPorTipo!.entries)
+            {'tipo_precio_id': e.key, 'monto': e.value},
+        ],
       'principio_activo': principioActivo,
       'uso_de_medicacion': usoMedicacion,
       // null = no tocar los códigos; '' = eliminarlos (el backend borra con lista vacía)
@@ -333,31 +461,43 @@ class Producto {
         'codigos': codigosBarra!.trim().isEmpty ? [] : [codigosBarra!.trim()],
       // Enviar stocks/almacenes con lote, fecha_vencimiento y límites
       'almacenes': stocks.isNotEmpty
-          ? stocks.map((stock) => {
-              if (stock['id'] != null) 'id': stock['id'],
-              'almacen_id': stock['almacen_id'],
-              'sector_id': stock['sector_id'],
-              'stock': stock['cantidad'],
-              'cantidad_disponible': stock['cantidad_disponible'],
-              'lote': stock['lote'],
-              'fecha_vencimiento': stock['fecha_vencimiento'],
-              if (stock['stock_minimo'] != null) 'stock_minimo': stock['stock_minimo'],
-              if (stock['stock_maximo'] != null) 'stock_maximo': stock['stock_maximo'],
-            }).toList()
+          ? stocks
+                .map(
+                  (stock) => {
+                    if (stock['id'] != null) 'id': stock['id'],
+                    'almacen_id': stock['almacen_id'],
+                    'sector_id': stock['sector_id'],
+                    'stock': stock['cantidad'],
+                    'cantidad_disponible': stock['cantidad_disponible'],
+                    'lote': stock['lote'],
+                    'fecha_vencimiento': stock['fecha_vencimiento'],
+                    if (stock['stock_minimo'] != null)
+                      'stock_minimo': stock['stock_minimo'],
+                    if (stock['stock_maximo'] != null)
+                      'stock_maximo': stock['stock_maximo'],
+                  },
+                )
+                .toList()
           : [],
       // Solo si se informó: si no, el backend deja las conversiones como están
       if (esFraccionado != null) ...{
         'es_fraccionado': esFraccionado,
         'conversiones': esFraccionado!
-            ? conversiones.map((c) => {
-                'unidad_base_id': c['unidad_base_id'],
-                'unidad_destino_id': c['unidad_destino_id'],
-                'producto_destino_id': c['producto_destino_id'],
-                'factor_conversion': c['factor_conversion'],
-                'nombre_cuando_se_vende_como': c['nombre_cuando_se_vende_como'],
-                'activo': c['activo'] ?? true,
-                'es_conversion_principal': c['es_conversion_principal'] ?? false,
-              }).toList()
+            ? conversiones
+                  .map(
+                    (c) => {
+                      'unidad_base_id': c['unidad_base_id'],
+                      'unidad_destino_id': c['unidad_destino_id'],
+                      'producto_destino_id': c['producto_destino_id'],
+                      'factor_conversion': c['factor_conversion'],
+                      'nombre_cuando_se_vende_como':
+                          c['nombre_cuando_se_vende_como'],
+                      'activo': c['activo'] ?? true,
+                      'es_conversion_principal':
+                          c['es_conversion_principal'] ?? false,
+                    },
+                  )
+                  .toList()
             : [],
       },
     };

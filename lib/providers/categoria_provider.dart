@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../models/categoria.dart';
 import '../services/service_locator.dart';
 
@@ -28,7 +29,9 @@ class CategoriaProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      print('📄 [CategoriaProvider] getCategorias(page: $page, search: $search)');
+      print(
+        '📄 [CategoriaProvider] getCategorias(page: $page, search: $search)',
+      );
 
       // Guardar el search actual
       _currentSearch = search;

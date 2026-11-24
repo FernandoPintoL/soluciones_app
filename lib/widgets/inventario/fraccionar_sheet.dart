@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../config/colores_app.dart';
+
 import '../../services/service_locator.dart';
 import '../campo_formulario.dart';
 import '../colores_almacen.dart';
@@ -263,7 +265,7 @@ class _FraccionarSheetState extends State<FraccionarSheet> {
                             '${conversion['producto_hijo_nombre'] ?? 'Hijo'}: '
                             '+${formatearCantidad(cantidadHijo)} $unidadHijo',
                             style: theme.textTheme.bodySmall?.copyWith(
-                              color: Colors.green.shade700,
+                              color: AppColores.estado(context).verde,
                               fontWeight: FontWeight.w600,
                             ),
                           ),

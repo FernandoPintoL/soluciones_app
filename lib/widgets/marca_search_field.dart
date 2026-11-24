@@ -102,6 +102,15 @@ class _MarcaSearchFieldState extends State<MarcaSearchField> {
 
   @override
   Widget build(BuildContext context) {
+    // El catálogo de marcas puede llegar después que el producto: al cambiar
+    // el provider se vuelve a buscar el nombre de la marca seleccionada
+    context.watch<DropdownProvider>();
+    if (_controller.text.isEmpty && widget.value != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _controller.text.isEmpty) _cargarMarcaActual();
+      });
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

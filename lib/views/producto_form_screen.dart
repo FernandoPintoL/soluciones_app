@@ -3,11 +3,15 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+
+import '../config/colores_app.dart';
+
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../models/dropdown_option.dart';
 import '../models/producto.dart';
+import '../models/tipo_precio_opcion.dart';
 import '../providers/dropdown_provider.dart';
 import '../providers/producto_provider.dart';
 import '../services/service_locator.dart';
@@ -18,6 +22,7 @@ import '../widgets/producto_form/botones_accion_form.dart';
 import '../widgets/producto_form/imagen_producto_card.dart';
 import '../widgets/producto_form/conversion_editor_sheet.dart';
 import '../widgets/producto_form/stock_editor_sheet.dart';
+import '../widgets/producto_form/codigo_barras_validacion.dart';
 import '../widgets/producto_form/tabla_stocks.dart';
 import '../widgets/search_select_field.dart';
 import 'barcode_scanner_screen.dart';
@@ -37,8 +42,11 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
   // Datos del producto
   late final TextEditingController _nombreController;
   late final TextEditingController _skuController;
-  late final TextEditingController _precioCompraController;
-  late final TextEditingController _precioVentaController;
+  // Precios por tipo de precio: controlador de monto por tipo_precio_id,
+  // tipos activos y montos que el usuario editó a mano (no se recalculan)
+  final Map<int, TextEditingController> _montoCtrl = {};
+  final Set<int> _tiposActivos = {};
+  final Set<int> _montoManual = {};
   late final TextEditingController _codigoBarrasController;
   int? _marcaId;
   int? _unidadMedidaId;
@@ -53,7 +61,6 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
   // Imagen
   final ImagePicker _imagePicker = ImagePicker();
   File? _imagenSeleccionada;
-  bool _mostrarImagen = false;
 
   // Producto cargado desde la API (con stocks completos)
   Producto? _productoActual;
@@ -67,8 +74,8 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
   String _firmaFormulario() => jsonEncode([
     _nombreController.text,
     _skuController.text,
-    _precioCompraController.text,
-    _precioVentaController.text,
+    {for (final e in _montoCtrl.entries) '${e.key}': e.value.text},
+    (_tiposActivos.toList()..sort()),
     _codigoBarrasController.text,
     _marcaId,
     _unidadMedidaId,
@@ -87,12 +94,7 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
     final p = widget.producto;
     _nombreController = TextEditingController(text: p?.nombre ?? '');
     _skuController = TextEditingController(text: p?.sku ?? '');
-    _precioCompraController = TextEditingController(
-      text: p?.precioCompra?.toString() ?? '',
-    );
-    _precioVentaController = TextEditingController(
-      text: p?.precioVenta?.toString() ?? '',
-    );
+    if (p != null) _aplicarPreciosDelProducto(p);
     _codigoBarrasController = TextEditingController(
       text: p?.codigosBarra ?? '',
     );
@@ -107,10 +109,11 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
     for (final c in [
       _nombreController,
       _skuController,
-      _precioCompraController,
-      _precioVentaController,
       _codigoBarrasController,
     ]) {
+      c.dispose();
+    }
+    for (final c in _montoCtrl.values) {
       c.dispose();
     }
     super.dispose();
@@ -129,8 +132,8 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
     final color = switch (tipo) {
       _TipoMensaje.exito => scheme.secondary,
       _TipoMensaje.error => scheme.error,
-      _TipoMensaje.aviso => Colors.orange,
-      _TipoMensaje.neutro => Colors.grey,
+      _TipoMensaje.aviso => AppColores.naranja,
+      _TipoMensaje.neutro => AppColores.gris,
     };
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -178,8 +181,7 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
         _productoActual = producto;
         _nombreController.text = producto.nombre;
         _skuController.text = producto.sku ?? '';
-        _precioCompraController.text = producto.precioCompra?.toString() ?? '';
-        _precioVentaController.text = producto.precioVenta?.toString() ?? '';
+        _aplicarPreciosDelProducto(producto);
         _codigoBarrasController.text = producto.codigosBarra ?? '';
         _marcaId = producto.marcaId;
         _unidadMedidaId = producto.unidadMedidaId ?? _unidadMedidaId;
@@ -489,28 +491,55 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
   // Imagen
   // ---------------------------------------------------------------------------
 
+  /// Hoja inferior para elegir el origen de la foto (cámara o galería).
   void _showImageSourceDialog() {
-    showDialog(
+    showModalBottomSheet<void>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Seleccionar Imagen'),
-        content: const Text('¿De donde deseas tomar la imagen?'),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _seleccionarImagen(ImageSource.camera);
-            },
-            child: const Text('Cámara'),
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Foto del producto',
+                    style: Theme.of(ctx).textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+              ListTile(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                leading: const Icon(Icons.photo_camera_outlined),
+                title: const Text('Tomar foto'),
+                subtitle: const Text('Usa la cámara del teléfono'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _seleccionarImagen(ImageSource.camera);
+                },
+              ),
+              ListTile(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                leading: const Icon(Icons.photo_library_outlined),
+                title: const Text('Elegir de la galería'),
+                subtitle: const Text('Una foto que ya tengas guardada'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _seleccionarImagen(ImageSource.gallery);
+                },
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _seleccionarImagen(ImageSource.gallery);
-            },
-            child: const Text('Galería'),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -539,6 +568,12 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
   Future<void> _handleSave() async {
     if (_nombreController.text.isEmpty) {
       _mensaje('El nombre es requerido', tipo: _TipoMensaje.error);
+      return;
+    }
+    final tiposPrecio = context.read<DropdownProvider>().tiposPrecio;
+    final errorPrecios = _validarPrecios(tiposPrecio);
+    if (errorPrecios != null) {
+      _mensaje(errorPrecios, tipo: _TipoMensaje.error);
       return;
     }
     final errorConversiones = _validarConversiones();
@@ -573,12 +608,12 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
           ? _codigoBarrasController.text
           : null,
       limiteventa: base?.limiteventa,
-      precioCompra: _precioCompraController.text.isNotEmpty
-          ? double.tryParse(_precioCompraController.text)
-          : 0.0,
-      precioVenta: _precioVentaController.text.isNotEmpty
-          ? double.tryParse(_precioVentaController.text)
-          : 0.0,
+      // Igual que el stock: si no se pudo cargar el producto o no hay tipos,
+      // null = no tocar los precios (una lista vacía los quitaría todos)
+      preciosPorTipo:
+          (_esNuevo || _productoActual != null) && tiposPrecio.isNotEmpty
+          ? _preciosParaGuardar(tiposPrecio)
+          : null,
       // La tabla es lo que se guarda. Si al editar no se pudo cargar el
       // producto completo, la tabla está vacía por error: se reenvían los
       // stocks originales para no perderlos.
@@ -668,38 +703,39 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      CampoTexto(
-                        controller: _nombreController,
-                        label: 'Nombre *',
-                        enabled: !guardando,
-                      ),
-                      const SizedBox(height: 16),
-                      ImagenProductoCard(
-                        imagenSeleccionada: _imagenSeleccionada,
-                        imagenRemota: (_productoActual ?? widget.producto)
-                            ?.imagenPrincipal,
-                        mostrar: _mostrarImagen,
-                        habilitado: !guardando,
-                        onMostrarChanged: (value) =>
-                            setState(() => _mostrarImagen = value),
-                        onSeleccionar: _showImageSourceDialog,
-                        onQuitar: () =>
-                            setState(() => _imagenSeleccionada = null),
-                      ),
-                      const SizedBox(height: 16),
-                      _buildCodigoBarra(guardando),
-                      const SizedBox(height: 16),
-                      _buildUnidadYMarca(dropdownProvider, guardando),
-                      const SizedBox(height: 16),
-                      if (!_esNuevo) ...[
+                      _seccionFlat('Información', Icons.inventory_2_outlined, [
                         CampoTexto(
-                          controller: _skuController,
-                          label: 'SKU',
+                          controller: _nombreController,
+                          label: 'Nombre *',
                           enabled: !guardando,
                         ),
                         const SizedBox(height: 16),
-                      ],
-                      _buildPrecios(guardando),
+                        ImagenProductoCard(
+                          imagenSeleccionada: _imagenSeleccionada,
+                          imagenRemota: (_productoActual ?? widget.producto)
+                              ?.imagenPrincipal,
+                          habilitado: !guardando,
+                          onSeleccionar: _showImageSourceDialog,
+                          onQuitar: () =>
+                              setState(() => _imagenSeleccionada = null),
+                        ),
+                        const SizedBox(height: 16),
+                        _buildCodigoBarra(guardando),
+                        const SizedBox(height: 16),
+                        _buildUnidadYMarca(dropdownProvider, guardando),
+                        if (!_esNuevo) ...[
+                          const SizedBox(height: 16),
+                          CampoTexto(
+                            controller: _skuController,
+                            label: 'SKU',
+                            enabled: !guardando,
+                          ),
+                        ],
+                      ]),
+                      const SizedBox(height: 16),
+                      _seccionFlat('Precios', Icons.sell_outlined, [
+                        _buildPrecios(guardando, dropdownProvider.tiposPrecio),
+                      ]),
                       const SizedBox(height: 16),
                       _buildSeccionStock(),
                       const SizedBox(height: 16),
@@ -727,33 +763,121 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
     );
   }
 
-  Widget _buildCodigoBarra(bool guardando) {
-    return Row(
-      children: [
-        Expanded(
-          child: CampoTexto(
-            controller: _codigoBarrasController,
-            label: 'Codigo de Barra',
-            enabled: !guardando,
-          ),
-        ),
-        const SizedBox(width: 8),
-        ValueListenableBuilder<TextEditingValue>(
-          valueListenable: _codigoBarrasController,
-          builder: (context, valor, _) => valor.text.isEmpty
-              ? const SizedBox.shrink()
-              : IconButton(
-                  onPressed: _codigoBarrasController.clear,
-                  icon: const Icon(Icons.close, color: Colors.amber),
-                  tooltip: 'Limpiar codigo',
+  /// Bloque plano con título e icono; [accion] va a la derecha del encabezado.
+  Widget _seccionFlat(
+    String titulo,
+    IconData icono,
+    List<Widget> hijos, {
+    Widget? accion,
+  }) {
+    final tema = Theme.of(context);
+    final colores = tema.colorScheme;
+    return Material(
+      color: colores.surface,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: colores.outlineVariant),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Icon(icono, size: 18, color: colores.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    titulo,
+                    style: tema.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
+                if (accion != null) accion,
+              ],
+            ),
+            const SizedBox(height: 14),
+            ...hijos,
+          ],
         ),
-        IconButton(
-          onPressed: _scanBarcode,
-          icon: const Icon(Icons.qr_code_scanner),
-          tooltip: 'Escanear código de barra',
-        ),
-      ],
+      ),
+    );
+  }
+
+  /// Campo con escanear y limpiar dentro, y una pista que valida el formato GS1.
+  Widget _buildCodigoBarra(bool guardando) {
+    final estado = AppColores.estado(context);
+    final tema = Theme.of(context);
+    return ValueListenableBuilder<TextEditingValue>(
+      valueListenable: _codigoBarrasController,
+      builder: (context, valor, _) {
+        final texto = valor.text.trim();
+        final resultado = texto.isEmpty ? null : evaluarCodigoBarra(texto);
+        final (icono, color) = switch (resultado?.nivel) {
+          NivelCodigo.ok => (Icons.check_circle_outline, estado.verde),
+          NivelCodigo.aviso => (Icons.warning_amber_rounded, estado.naranja),
+          NivelCodigo.info => (
+            Icons.info_outline,
+            tema.colorScheme.onSurfaceVariant,
+          ),
+          null => (Icons.info_outline, tema.colorScheme.onSurfaceVariant),
+        };
+        final mensaje =
+            resultado?.mensaje ??
+            'Escanea el código o escríbelo. Acepta EAN-13, EAN-8, UPC-A o GTIN-14.';
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            CampoTexto(
+              controller: _codigoBarrasController,
+              label: 'Código de barras',
+              hint: 'Escanea o escribe',
+              enabled: !guardando,
+              keyboardType: TextInputType.number,
+              prefixIcon: const Icon(Icons.qr_code_2),
+              suffixIcon: Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (texto.isNotEmpty && !guardando)
+                      IconButton(
+                        tooltip: 'Limpiar código',
+                        onPressed: _codigoBarrasController.clear,
+                        icon: const Icon(Icons.close),
+                      ),
+                    IconButton.filledTonal(
+                      tooltip: 'Escanear código de barras',
+                      onPressed: guardando ? null : _scanBarcode,
+                      icon: const Icon(Icons.qr_code_scanner),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(top: 6, left: 4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(icono, size: 14, color: color),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      mensaje,
+                      style: tema.textTheme.labelSmall?.copyWith(color: color),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -784,30 +908,273 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
     );
   }
 
-  Widget _buildPrecios(bool guardando) {
-    const teclado = TextInputType.numberWithOptions(decimal: true);
-    return Row(
+  // ---------------------------------------------------------------------------
+  // Precios por tipo de precio (tipos_precio): costo y precios de venta
+  // ---------------------------------------------------------------------------
+
+  TextEditingController _ctrlMonto(int tipoId) =>
+      _montoCtrl.putIfAbsent(tipoId, TextEditingController.new);
+
+  double _numeroDe(String texto) =>
+      double.tryParse(texto.trim().replaceAll(',', '.')) ?? 0;
+
+  TipoPrecioOpcion? _costoDe(List<TipoPrecioOpcion> tipos) =>
+      tipos.where((t) => t.esPrecioBase).firstOrNull;
+
+  /// Carga los precios del producto. Los que ya existen se toman como fijados
+  /// a mano: no se recalculan solos al cambiar el costo.
+  void _aplicarPreciosDelProducto(Producto p) {
+    for (final c in _montoCtrl.values) {
+      c.text = '';
+    }
+    _tiposActivos.clear();
+    _montoManual.clear();
+    (p.preciosPorTipo ?? const <int, double>{}).forEach((tipoId, monto) {
+      _ctrlMonto(tipoId).text = monto.toStringAsFixed(2);
+      _tiposActivos.add(tipoId);
+      _montoManual.add(tipoId);
+    });
+  }
+
+  /// Monto sugerido: costo + porcentaje de ganancia del tipo.
+  void _calcularMonto(TipoPrecioOpcion tipo, double costo) {
+    if (tipo.esPrecioBase || tipo.porcentajeGanancia <= 0 || costo <= 0) return;
+    _ctrlMonto(tipo.id).text = (costo * (1 + tipo.porcentajeGanancia / 100))
+        .toStringAsFixed(2);
+  }
+
+  /// Al cambiar el costo se recalculan los montos que no se editaron a mano.
+  void _recalcularMontos(List<TipoPrecioOpcion> tipos) {
+    final costoTipo = _costoDe(tipos);
+    if (costoTipo == null) return;
+    final costo = _numeroDe(_ctrlMonto(costoTipo.id).text);
+    for (final t in tipos) {
+      if (!_montoManual.contains(t.id)) _calcularMonto(t, costo);
+    }
+  }
+
+  void _alActivarTipo(
+    TipoPrecioOpcion tipo,
+    bool activo,
+    List<TipoPrecioOpcion> tipos,
+  ) {
+    setState(() {
+      if (!activo) {
+        _tiposActivos.remove(tipo.id);
+        return;
+      }
+      _tiposActivos.add(tipo.id);
+      // Al activarlo se sugiere el monto si todavía está vacío
+      final costoTipo = _costoDe(tipos);
+      if (costoTipo != null &&
+          _ctrlMonto(tipo.id).text.isEmpty &&
+          !_montoManual.contains(tipo.id)) {
+        _calcularMonto(tipo, _numeroDe(_ctrlMonto(costoTipo.id).text));
+      }
+    });
+  }
+
+  /// Mismo criterio que el backend: ningún precio puede quedar bajo el costo.
+  String? _validarPrecios(List<TipoPrecioOpcion> tipos) {
+    final costoTipo = _costoDe(tipos);
+    if (costoTipo == null) return null;
+    final costo = _numeroDe(_ctrlMonto(costoTipo.id).text);
+    if (costo <= 0) return null;
+    for (final t in tipos) {
+      if (t.esPrecioBase || !_tiposActivos.contains(t.id)) continue;
+      final monto = _numeroDe(_ctrlMonto(t.id).text);
+      if (monto > 0 && monto < costo) {
+        return 'El precio de ${t.nombre} (${monto.toStringAsFixed(2)}) '
+            'no puede ser menor al costo (${costo.toStringAsFixed(2)}).';
+      }
+    }
+    return null;
+  }
+
+  /// Costo (siempre que tenga monto) y cada tipo activo con monto > 0.
+  Map<int, double> _preciosParaGuardar(List<TipoPrecioOpcion> tipos) {
+    final resultado = <int, double>{};
+    for (final t in tipos) {
+      if (!t.esPrecioBase && !_tiposActivos.contains(t.id)) continue;
+      final monto = _numeroDe(_ctrlMonto(t.id).text);
+      if (monto > 0) resultado[t.id] = monto;
+    }
+    return resultado;
+  }
+
+  Widget _buildPrecios(bool guardando, List<TipoPrecioOpcion> tipos) {
+    final theme = Theme.of(context);
+    if (tipos.isEmpty) {
+      return Text(
+        'No hay tipos de precio activos en la empresa.',
+        style: theme.textTheme.bodySmall?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+      );
+    }
+    final costoTipo = _costoDe(tipos);
+    final otros = tipos.where((t) => !t.esPrecioBase).toList();
+    // Precios guardados de tipos que ya no están activos: no se pueden editar aquí
+    final huerfanos =
+        _tiposActivos.where((id) => !tipos.any((t) => t.id == id)).toList()
+          ..sort();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Expanded(
-          child: CampoTexto(
-            controller: _precioCompraController,
-            label: 'Precio Compra',
+        if (costoTipo != null)
+          CampoTexto(
+            controller: _ctrlMonto(costoTipo.id),
+            label: 'Costo de compra',
             hint: '0.00',
             enabled: !guardando,
-            keyboardType: teclado,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            onChanged: (_) => setState(() => _recalcularMontos(tipos)),
           ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: CampoTexto(
-            controller: _precioVentaController,
-            label: 'Precio Venta',
-            hint: '0.00',
-            enabled: !guardando,
-            keyboardType: teclado,
-          ),
-        ),
+        for (final t in otros) ...[
+          const SizedBox(height: 10),
+          _filaPrecio(t, tipos, guardando),
+        ],
+        for (final id in huerfanos) _avisoTipoInactivo(id),
       ],
+    );
+  }
+
+  /// Aviso para un precio cuyo tipo ya no está activo: se quita al guardar.
+  Widget _avisoTipoInactivo(int tipoId) {
+    final tema = Theme.of(context);
+    final estado = AppColores.estado(context);
+    final monto = _numeroDe(_ctrlMonto(tipoId).text);
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: estado.naranja.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: estado.naranja),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Hay un precio de Bs ${monto.toStringAsFixed(2)} de un tipo '
+                'inactivo. Se quitará al guardar.',
+                style: tema.textTheme.bodySmall,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Un tipo de precio: checkbox para activarlo, monto y margen sobre el costo.
+  Widget _filaPrecio(
+    TipoPrecioOpcion tipo,
+    List<TipoPrecioOpcion> tipos,
+    bool guardando,
+  ) {
+    final colores = Theme.of(context).colorScheme;
+    final tema = Theme.of(context);
+    final activo = _tiposActivos.contains(tipo.id);
+    final monto = _ctrlMonto(tipo.id);
+    final costoTipo = _costoDe(tipos);
+    final costoCtrl = costoTipo == null ? null : _ctrlMonto(costoTipo.id);
+
+    return Material(
+      color: colores.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: colores.outlineVariant),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(4, 8, 12, 8),
+        child: Row(
+          children: [
+            Checkbox(
+              value: activo,
+              onChanged: guardando
+                  ? null
+                  : (v) => _alActivarTipo(tipo, v ?? false, tipos),
+            ),
+            Expanded(
+              child: AnimatedBuilder(
+                animation: Listenable.merge([
+                  monto,
+                  if (costoCtrl != null) costoCtrl,
+                ]),
+                builder: (context, child) => Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      tipo.nombre,
+                      style: tema.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    _textoMargen(tipo, costoCtrl, monto),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            SizedBox(
+              width: 120,
+              child: CampoTexto(
+                controller: monto,
+                label: 'Monto',
+                hint: '0.00',
+                compacta: true,
+                enabled: activo && !guardando,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                onChanged: (_) {
+                  _montoManual.add(tipo.id);
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Ganancia en Bs y % sobre el costo (verde), o aviso si queda bajo el costo (rojo).
+  Widget _textoMargen(
+    TipoPrecioOpcion tipo,
+    TextEditingController? costoCtrl,
+    TextEditingController monto,
+  ) {
+    final tema = Theme.of(context);
+    final estado = AppColores.estado(context);
+    final costo = costoCtrl == null ? 0.0 : _numeroDe(costoCtrl.text);
+    final precio = _numeroDe(monto.text);
+
+    var texto = '';
+    var color = tema.colorScheme.onSurfaceVariant;
+    if (precio <= 0) {
+      texto = tipo.porcentajeGanancia > 0
+          ? 'Sugerido +${tipo.porcentajeGanancia.toStringAsFixed(0)}% sobre el costo'
+          : 'Sin monto';
+    } else if (costo <= 0) {
+      texto = 'Ingresa el costo para ver la ganancia';
+    } else {
+      final ganancia = precio - costo;
+      final pct = ganancia / costo * 100;
+      if (ganancia < 0) {
+        texto = 'Debajo del costo (${ganancia.toStringAsFixed(2)} Bs)';
+        color = estado.rojo;
+      } else {
+        texto =
+            'Ganancia ${ganancia.toStringAsFixed(2)} Bs · ${pct.toStringAsFixed(1)}%';
+        color = estado.verde;
+      }
+    }
+    return Text(
+      texto,
+      style: tema.textTheme.labelSmall?.copyWith(color: color),
     );
   }
 
@@ -835,66 +1202,48 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
       child: Text(texto, style: theme.textTheme.bodySmall),
     );
 
-    return Card(
-      elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.call_split, color: theme.colorScheme.primary),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Fraccionamiento',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                if (_esFraccionado)
-                  FilledButton.tonalIcon(
-                    onPressed: () => _abrirEditorConversion(),
-                    icon: const Icon(Icons.add),
-                    label: const Text('Agregar'),
-                  ),
-              ],
-            ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Permitir conversiones de unidades'),
-              subtitle: Text(
-                'Unidad base: ${etiquetaUnidad(unidades, _unidadMedidaId)}',
-              ),
-              value: _esFraccionado,
-              onChanged: (v) => setState(() => _esFraccionado = v),
-            ),
-            if (_esFraccionado) ...[
-              if (baseDistinta)
-                aviso(
-                  '⚠️ Las conversiones usan una unidad base distinta a la del '
-                  'producto ($baseCorta). Edítalas o elimínalas.',
-                  theme.colorScheme.error,
-                ),
-              if (sinPrincipal)
-                aviso(
-                  '⚡ Sin conversión principal: edita una y márcala con ⭐.',
-                  Colors.orange,
-                ),
-              if (_conversiones.isEmpty)
-                aviso(
-                  '📝 Aún no hay conversiones. Agrega al menos una para poder '
-                  'vender en otras unidades.',
-                  Colors.amber,
-                ),
-              for (final (i, conv) in _conversiones.indexed)
-                _buildConversionTile(i, conv, unidades, baseCorta),
-            ],
-          ],
+    return _seccionFlat(
+      'Fraccionamiento',
+      Icons.call_split,
+      [
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Permitir conversiones de unidades'),
+          subtitle: Text(
+            'Unidad base: ${etiquetaUnidad(unidades, _unidadMedidaId)}',
+          ),
+          value: _esFraccionado,
+          onChanged: (v) => setState(() => _esFraccionado = v),
         ),
-      ),
+        if (_esFraccionado) ...[
+          if (baseDistinta)
+            aviso(
+              '⚠️ Las conversiones usan una unidad base distinta a la del '
+              'producto ($baseCorta). Edítalas o elimínalas.',
+              theme.colorScheme.error,
+            ),
+          if (sinPrincipal)
+            aviso(
+              '⚡ Sin conversión principal: edita una y márcala con ⭐.',
+              AppColores.estado(context).naranja,
+            ),
+          if (_conversiones.isEmpty)
+            aviso(
+              '📝 Aún no hay conversiones. Agrega al menos una para poder '
+              'vender en otras unidades.',
+              AppColores.estado(context).naranja,
+            ),
+          for (final (i, conv) in _conversiones.indexed)
+            _buildConversionTile(i, conv, unidades, baseCorta),
+        ],
+      ],
+      accion: _esFraccionado
+          ? FilledButton.tonalIcon(
+              onPressed: () => _abrirEditorConversion(),
+              icon: const Icon(Icons.add),
+              label: const Text('Agregar'),
+            )
+          : null,
     );
   }
 
@@ -942,7 +1291,7 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
           children: [
             IconButton(
               icon: const Icon(Icons.edit, size: 20),
-              color: Colors.blue,
+              color: AppColores.estado(context).azul,
               tooltip: 'Editar',
               onPressed: () => _abrirEditorConversion(index),
             ),
@@ -962,52 +1311,32 @@ class _ProductoFormScreenState extends State<ProductoFormScreen> {
   /// agregan/editan en un bottom sheet.
   Widget _buildSeccionStock() {
     final theme = Theme.of(context);
-    return Card(
-      elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.inventory_2, color: theme.colorScheme.primary),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Stock por Almacén',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                FilledButton.tonalIcon(
-                  onPressed: () => _abrirEditorStock(),
-                  icon: const Icon(Icons.add),
-                  label: const Text('Agregar'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            if (_stocksAgregados.isEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                child: Text(
-                  'Sin stock cargado. Usa "Agregar" para cargar stock en un almacén.',
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              )
-            else
-              TablaStocks(
-                stocks: _stocksAgregados,
-                onEditar: _abrirEditorStock,
-                onEliminar: _eliminarStock,
+    return _seccionFlat(
+      'Stock por Almacén',
+      Icons.inventory_2_outlined,
+      [
+        if (_stocksAgregados.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Text(
+              'Sin stock cargado. Usa "Agregar" para cargar stock en un almacén.',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
               ),
-          ],
-        ),
+            ),
+          )
+        else
+          TablaStocks(
+            stocks: _stocksAgregados,
+            onEditar: _abrirEditorStock,
+            onEliminar: _eliminarStock,
+          ),
+      ],
+      accion: FilledButton.tonalIcon(
+        onPressed: () => _abrirEditorStock(),
+        icon: const Icon(Icons.add),
+        label: const Text('Agregar'),
       ),
     );
   }

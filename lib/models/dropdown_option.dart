@@ -3,11 +3,7 @@ class DropdownOption {
   final String nombre;
   final String? codigo;
 
-  DropdownOption({
-    required this.id,
-    required this.nombre,
-    this.codigo,
-  });
+  DropdownOption({required this.id, required this.nombre, this.codigo});
 
   factory DropdownOption.fromJson(Map<String, dynamic> json) {
     return DropdownOption(
